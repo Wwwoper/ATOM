@@ -230,6 +230,11 @@ class PackageDelivery(models.Model):
 
     def clean(self):
         """Валидация модели."""
+        if not self.tracking_number:
+            raise ValidationError("Трек номер не может быть пустым")
+
+        if self.weight is not None and self.weight < 0:
+            raise ValidationError("Вес не может быть отрицательным")
         super().clean()
 
         # Проверка уникальности доставки для посылки

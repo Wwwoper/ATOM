@@ -47,6 +47,13 @@ class User(AbstractUser):
         verbose_name="Права пользователя",
         help_text="Права пользователя.",
     )
+    email = models.EmailField(
+        "email address",
+        unique=True,
+        error_messages={
+            "unique": "Пользователь с таким email уже существует.",
+        },
+    )
 
     class Meta:
         """Мета-класс для модели User."""
@@ -57,3 +64,13 @@ class User(AbstractUser):
     def __str__(self):
         """Строковое представление пользователя."""
         return self.username
+
+    def save(self, *args, **kwargs):
+        """Сохранение пользователя с защитой системных полей."""
+        if self.pk:  # Если объект уже существует
+            # Получаем оригинальный объект из базы
+            orig = User.objects.get(pk=self.pk)
+            # Восстанавливаем системные поля
+            self.date_joined = orig.date_joined
+            self.last_login = orig.last_login
+        super().save(*args, **kwargs)

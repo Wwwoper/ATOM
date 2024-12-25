@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 
 from balance.services.transaction_service import TransactionProcessor
-from orders.services.order_service import OrderService
+from order.services.order_service import OrderService
 
 
 class OrderStrategy(ABC):

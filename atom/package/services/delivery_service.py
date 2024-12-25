@@ -102,6 +102,13 @@ class PackageDeliveryService:
 
         if delivery.package.total_cost_eur <= 0:
             raise ValidationError({"package": "Укажите стоимость посылки"})
+        # Добавляем проверку курса обмена
+        if not delivery.package.user.balance.average_exchange_rate:
+            raise ValidationError({"package": "Не установлен курс обмена"})
+
+        # Проверяем, что курс обмена положительный
+        if delivery.package.user.balance.average_exchange_rate <= 0:
+            raise ValidationError({"package": "Некорректный курс обмена"})
 
     def _calculate_shipping_cost_rub(self, delivery) -> Decimal:
         shipping_cost_rub = (

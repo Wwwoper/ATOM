@@ -11,7 +11,7 @@ class OrderStatusStrategyFactory:
     @classmethod
     def _get_strategies(cls):
         """Получить словарь стратегий с кодами статусов."""
-        Order = apps.get_model("orders", "Order")
+        Order = apps.get_model("order", "Order")
         status_codes = get_status_codes(Order)
         from order.services.order_strategies import (
             NewOrderStrategy,
