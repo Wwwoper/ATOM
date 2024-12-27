@@ -165,3 +165,38 @@ class TestSite:
         """Тест строкового представления."""
         site = Site.objects.create(**valid_site_data)
         assert str(site) == valid_site_data["name"]
+
+    def test_site_deletion_with_orders(self, valid_site_data, user):
+        """Тест запрета удаления сайта с существующими заказами."""
+        # Создаем сайт
+        site = Site.objects.create(**valid_site_data)
+        default_status = Status.objects.get(group__code="order_status", is_default=True)
+
+        # Создаем заказ для сайта
+        Order.objects.create(
+            user=user,
+            site=site,
+            internal_number="INT-1",
+            external_number="EXT-1",
+            amount_euro=Decimal("100.00"),
+            amount_rub=Decimal("10000.00"),
+            status=default_status,
+        )
+
+        # Проверяем, что сайт нельзя удалить
+        with pytest.raises(ValidationError) as exc_info:
+            site.delete()
+
+        assert "Невозможно удалить сайт, пока с ним связаны заказы" in str(
+            exc_info.value
+        )
+        assert Site.objects.filter(pk=site.pk).exists()
+
+        # Проверяем, что сайт без заказов можно удалить
+        new_site = Site.objects.create(
+            name="Test Site 2",
+            url="https://test-site-2.com",
+            organizer_fee_percentage=Decimal("10.00"),
+        )
+        new_site.delete()
+        assert not Site.objects.filter(pk=new_site.pk).exists()

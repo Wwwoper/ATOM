@@ -65,6 +65,20 @@ class Site(models.Model):
         """Строковое представление модели."""
         return self.name
 
+    def delete(self, *args, **kwargs):
+        """
+        Удаление сайта с проверкой на наличие связанных заказов.
+
+        Raises:
+            ValidationError: Если есть связанные заказы
+        """
+        if self.orders.exists():
+            raise ValidationError(
+                "Невозможно удалить сайт, пока с ним связаны заказы. "
+                f"Количество связанных заказов: {self.orders.count()}"
+            )
+        return super().delete(*args, **kwargs)
+
 
 class Order(models.Model):
     """Модель заказа."""
@@ -76,7 +90,7 @@ class Order(models.Model):
         related_name="orders",
     )
     site = models.ForeignKey(
-        Site, on_delete=models.CASCADE, related_name="orders", verbose_name="Сайт"
+        Site, on_delete=models.PROTECT, related_name="orders", verbose_name="Сайт"
     )
     status = models.ForeignKey(
         "status.Status",
@@ -203,5 +217,5 @@ class Order(models.Model):
             ValidationError: Если заказ оплачен
         """
         if self.status.code == "paid":
-            raise ValidationError("Невозможно удалить оплаченный заказ")
+            raise ValidationError("Невозможно удалить о��лаченный заказ")
         return super().delete(*args, **kwargs)

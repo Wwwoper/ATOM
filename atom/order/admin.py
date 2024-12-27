@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.db.models import Count, Sum
+from django.core.exceptions import PermissionDenied
 from django.utils.html import format_html
 
 from .models import Order, Site
@@ -46,6 +46,18 @@ class SiteAdmin(admin.ModelAdmin):
         return format_html("₽{}", "{:.2f}".format(float(total_profit)))
 
     display_total_profit.short_description = "Общая прибыль"
+
+    def has_delete_permission(self, request, obj=None):
+        """Запрет на удаление сайта."""
+        return False
+
+    def delete_model(self, request, obj):
+        """Запрет на удаление отдельного сайта."""
+        raise PermissionDenied("Удаление сайта запрещено")
+
+    def delete_queryset(self, request, queryset):
+        """Запрет на массовое удаление сайтов."""
+        raise PermissionDenied("Массовое удаление сайтов запрещено")
 
 
 @admin.register(Order)
