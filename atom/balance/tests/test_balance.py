@@ -96,3 +96,28 @@ class TestBalance:
         """Тест строкового представления."""
         expected = f"Баланс {balance.user.username} - {balance.balance_euro} EUR, {balance.balance_rub} RUB"
         assert str(balance) == expected
+
+    def test_user_immutability(self, user):
+        """Тест невозможности изменения пользователя баланса."""
+        # Получаем баланс пользователя
+        balance = user.balance
+
+        # Создаем нового пользователя
+        new_user = UserService.create_user(
+            username="newuser", email="newuser@example.com", password="testpass123"
+        )
+
+        # Пытаемся изменить пользователя
+        balance.user = new_user
+
+        # Проверяем, что возникает ошибка валидации
+        with pytest.raises(ValidationError) as exc_info:
+            balance.clean()
+
+        assert "Невозможно изменить пользователя после создания баланса" in str(
+            exc_info.value
+        )
+
+        # Проверяем, что пользователь не изменился в базе
+        balance.refresh_from_db()
+        assert balance.user == user

@@ -114,6 +114,15 @@ class Balance(models.Model):
         except (DivisionByZero, InvalidOperation):
             return Decimal("0.00")
 
+    def clean(self):
+        """Валидация модели."""
+        if self.pk:
+            old_balance = Balance.objects.get(pk=self.pk)
+            if self.user != old_balance.user:
+                raise ValidationError(
+                    {"user": "Невозможно изменить пользователя после создания баланса"}
+                )
+
 
 class Transaction(models.Model):
     """Модель для хранения информации о транзакциях пользователей."""
