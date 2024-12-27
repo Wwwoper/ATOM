@@ -1,8 +1,9 @@
 import pytest
 from decimal import Decimal
 from django.db import transaction as db_transaction
-from balance.models import Transaction
+from balance.models import Transaction, Balance
 from balance.services.constants import TransactionTypeChoices
+from django.db.models.deletion import ProtectedError
 
 
 @pytest.mark.django_db
@@ -70,3 +71,29 @@ class TestTransaction:
             db_transaction_obj = Transaction.objects.get(pk=trans.pk)
             assert db_transaction_obj.amount_euro == trans.amount_euro
             assert db_transaction_obj.amount_rub == trans.amount_rub
+
+    def test_transaction_deletion_protection(self, user, balance):
+        """Тест запрета удаления транзакции при существующем балансе."""
+        # Создаем транзакцию
+        transaction = Transaction.objects.create(
+            balance=balance,
+            transaction_type=TransactionTypeChoices.REPLENISHMENT,
+            amount_euro=Decimal("100.00"),
+            amount_rub=Decimal("10000.00"),
+        )
+
+        # Проверяем, что транзакция создана
+        assert Transaction.objects.filter(pk=transaction.pk).exists()
+
+        # Пытаемся удалить транзакцию
+        with pytest.raises(ProtectedError) as exc_info:
+            transaction.delete()
+
+        # Проверяем сообщение об ошибке
+        assert "Cannot delete transaction" in str(exc_info.value)
+
+        # Проверяем, что транзакция все еще существует
+        assert Transaction.objects.filter(pk=transaction.pk).exists()
+
+        # Проверяем, что связанный баланс также ��уществует
+        assert Balance.objects.filter(pk=balance.pk).exists()
