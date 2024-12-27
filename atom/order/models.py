@@ -147,10 +147,17 @@ class Order(models.Model):
         if self.amount_rub <= 0:
             raise ValidationError({"amount_rub": "Цена в рублях должна быть больше 0"})
 
-        # Проверка изменения сумм после оплаты
+        # Проверка изменения пользователя
         if self.pk:
             old_order = Order.objects.get(pk=self.pk)
+            if self.user != old_order.user:
+                raise ValidationError(
+                    {"user": "Невозможно изменить пользователя после создания заказа"}
+                )
+
+            # Проверка изменения сумм и статусов после оплаты
             if old_order.status.code == "paid":
+                # Проверка изменения сумм
                 if (
                     self.amount_euro != old_order.amount_euro
                     or self.amount_rub != old_order.amount_rub
@@ -161,34 +168,31 @@ class Order(models.Model):
                             "amount_rub": "Невозможно изменить сумму после оплаты",
                         }
                     )
-                # Проверка изменения статуса
+
+                # Проверка допустимости перехода статуса
                 if self.status != old_order.status:
-                    raise ValidationError(
-                        {"status": "Невозможно изменить статус оплаченного заказа"}
+                    allowed_transitions = (
+                        old_order.status.group.allowed_status_transitions.get(
+                            old_order.status.code, []
+                        )
                     )
+                    if self.status.code not in allowed_transitions:
+                        raise ValidationError(
+                            {
+                                "status": f"Недопустимый переход из статуса '{old_order.status.name}' в '{self.status.name}'"
+                            }
+                        )
 
     def save(self, *args, **kwargs):
         """Сохранение модели."""
         skip_status_processing = kwargs.pop("skip_status_processing", False)
 
-        if self.pk:  # Если объект уже существует
-            old_order = Order.objects.get(pk=self.pk)
-            if old_order.status.code == "paid":
-                # Восстанавливаем значения
-                self.amount_euro = old_order.amount_euro
-                self.amount_rub = old_order.amount_rub
-                self.paid_at = old_order.paid_at
-                self.status = old_order.status
-                self.expense = old_order.expense
-                self.profit = old_order.profit
+        status_service = OrderStatusService()
+
+        # Обработка статуса
+        status_service.process_status_change(self, skip_status_processing)
 
         self.clean()
-
-        # Обработка статуса если не пропускаем
-        if not skip_status_processing:
-            status_service = OrderStatusService()
-            status_service.process_status_change(self)
-
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):

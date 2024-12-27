@@ -202,3 +202,28 @@ class TestOrder:
         # или
         # expected = f"Заказ №INT-1 (Новый (Статусы заказа))"
         assert str(order) == expected
+
+    def test_user_immutability(self, valid_order_data):
+        """Тест невозможности изменения пользователя заказа."""
+        # Создаем заказ
+        order = Order.objects.create(**valid_order_data)
+
+        # Создаем нового пользователя
+        new_user = UserService().create_user(
+            username="newuser", email="newuser@example.com", password="newpass123"
+        )
+
+        # Пытаемся изменить пользователя
+        order.user = new_user
+
+        # Проверяем, что возникает ошибка валидации
+        with pytest.raises(ValidationError) as exc_info:
+            order.clean()
+
+        assert "Невозможно изменить пользователя после создания заказа" in str(
+            exc_info.value
+        )
+
+        # Проверяем, что пользователь не изменился в базе
+        order.refresh_from_db()
+        assert order.user == valid_order_data["user"]

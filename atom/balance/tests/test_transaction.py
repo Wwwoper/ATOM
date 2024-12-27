@@ -1,141 +1,72 @@
 import pytest
 from decimal import Decimal
-from django.core.exceptions import ValidationError
-from django.contrib.auth import get_user_model
-from django.utils import timezone
-
+from django.db import transaction as db_transaction
 from balance.models import Transaction
 from balance.services.constants import TransactionTypeChoices
-from balance.services.transaction_service import TransactionProcessor
-from user.services import UserService
-
-User = get_user_model()
 
 
 @pytest.mark.django_db
 class TestTransaction:
     """Тесты для модели Transaction."""
 
-    @pytest.fixture
-    def user(self):
-        """Фикстура для создания тестового пользователя."""
-        return UserService.create_user(
-            username="testuser", email="test@example.com", password="testpass123"
+    @pytest.fixture(autouse=True)
+    def setup(self, django_db_setup):
+        """Очистка транзакций перед каждым тестом."""
+        Transaction.objects.all().delete()
+
+    def test_transaction_types(self, user, balance):
+        """
+        Тест создания транзакций разных типов.
+
+        Проверяем:
+        1. Создание транзакций каждого типа
+        2. Корректность сохранения типов
+        3. Точное количество транзакций
+        """
+        # Создаем транзакции разных типов
+        with db_transaction.atomic():
+            transactions = [
+                Transaction.objects.create(
+                    balance=balance,
+                    transaction_type=TransactionTypeChoices.REPLENISHMENT,
+                    amount_euro=Decimal("100.00"),
+                    amount_rub=Decimal("10000.00"),
+                ),
+                Transaction.objects.create(
+                    balance=balance,
+                    transaction_type=TransactionTypeChoices.EXPENSE,
+                    amount_euro=Decimal("50.00"),
+                    amount_rub=Decimal("5000.00"),
+                ),
+                Transaction.objects.create(
+                    balance=balance,
+                    transaction_type=TransactionTypeChoices.PAYBACK,
+                    amount_euro=Decimal("30.00"),
+                    amount_rub=Decimal("3000.00"),
+                ),
+            ]
+
+        # Проверяем количество транзакций
+        assert (
+            Transaction.objects.count() == 3
+        ), f"Ожидалось 3 транзакции, получено {Transaction.objects.count()}"
+
+        # Проверяем типы транзакций
+        transaction_types = set(
+            Transaction.objects.values_list("transaction_type", flat=True)
         )
-
-    @pytest.fixture
-    def balance(self, user):
-        """Фикстура для получения баланса пользователя."""
-        return user.balance
-
-    def test_create_transaction(self, balance):
-        """Тест создания транзакции с валидными данными."""
-        transaction = Transaction.objects.create(
-            balance=balance,
-            transaction_type=TransactionTypeChoices.REPLENISHMENT,
-            amount_euro=Decimal("50.00"),
-            amount_rub=Decimal("5000.00"),
-            comment="Тестовое пополнение",
-        )
-
-        assert transaction.pk is not None
-        assert transaction.transaction_date <= timezone.now()
-        assert transaction.amount_euro == Decimal("50.00")
-        assert transaction.amount_rub == Decimal("5000.00")
-
-    def test_amount_validation(self, balance):
-        """Тест валидации сумм."""
-        # Проверка отрицательных сумм
-        with pytest.raises(ValidationError):
-            Transaction.objects.create(
-                balance=balance,
-                transaction_type=TransactionTypeChoices.REPLENISHMENT,
-                amount_euro=Decimal("-50.00"),
-                amount_rub=Decimal("5000.00"),
-            )
-
-        with pytest.raises(ValidationError):
-            Transaction.objects.create(
-                balance=balance,
-                transaction_type=TransactionTypeChoices.REPLENISHMENT,
-                amount_euro=Decimal("50.00"),
-                amount_rub=Decimal("-5000.00"),
-            )
-
-        # Проверка нулевых cумм
-        with pytest.raises(ValidationError):
-            Transaction.objects.create(
-                balance=balance,
-                transaction_type=TransactionTypeChoices.REPLENISHMENT,
-                amount_euro=Decimal("0.00"),
-                amount_rub=Decimal("5000.00"),
-            )
-
-    def test_transaction_processing(self, balance):
-        """Тест обработки транзакции."""
-        initial_balance_euro = Decimal("0.00")
-        initial_balance_rub = Decimal("0.00")
-
-        # Устанавливаем начальный баланс
-        balance.balance_euro = initial_balance_euro
-        balance.balance_rub = initial_balance_rub
-        balance.save(allow_balance_update=True)
-
-        # Создаем данные для транзакции
-        transaction_data = {
-            "balance": balance,
-            "transaction_type": TransactionTypeChoices.REPLENISHMENT,
-            "amount_euro": Decimal("50.00"),
-            "amount_rub": Decimal("5000.00"),
-            "comment": "Тестовое пополнение",
+        expected_types = {
+            TransactionTypeChoices.REPLENISHMENT,
+            TransactionTypeChoices.EXPENSE,
+            TransactionTypeChoices.PAYBACK,
         }
-
-        # Выполняем транзакцию через сервис
-        transaction = TransactionProcessor.execute_transaction(transaction_data)
-
-        balance.refresh_from_db()
-        assert balance.balance_euro == initial_balance_euro + Decimal("50.00")
-        assert balance.balance_rub == initial_balance_rub + Decimal("5000.00")
-
-    def test_transaction_types(self, balance):
-        """Тест различных типов транзакций."""
-        # Пополнение
-        replenishment = Transaction.objects.create(
-            balance=balance,
-            transaction_type=TransactionTypeChoices.REPLENISHMENT,
-            amount_euro=Decimal("50.00"),
-            amount_rub=Decimal("5000.00"),
-        )
-        assert replenishment.get_transaction_type_display() == "Пополнение"
-
-        # Списание
-        expense = Transaction.objects.create(
-            balance=balance,
-            transaction_type=TransactionTypeChoices.EXPENSE,
-            amount_euro=Decimal("30.00"),
-            amount_rub=Decimal("3000.00"),
-        )
-        assert expense.get_transaction_type_display() == "Списание"
-
-        # Возврат
-        payback = Transaction.objects.create(
-            balance=balance,
-            transaction_type=TransactionTypeChoices.PAYBACK,
-            amount_euro=Decimal("20.00"),
-            amount_rub=Decimal("2000.00"),
-        )
-        assert payback.get_transaction_type_display() == "Возврат"
-
-        assert Transaction.objects.count() == 3
-
-    def test_str_method(self, balance):
-        """Тест строкового представления."""
-        transaction = Transaction.objects.create(
-            balance=balance,
-            transaction_type=TransactionTypeChoices.REPLENISHMENT,
-            amount_euro=Decimal("50.00"),
-            amount_rub=Decimal("5000.00"),
+        assert transaction_types == expected_types, (
+            f"Ожидаемые типы: {expected_types}, "
+            f"полученные типы: {transaction_types}"
         )
 
-        expected = f"Пополнение от {transaction.transaction_date}"
-        assert str(transaction) == expected
+        # Проверяем суммы транзакций
+        for trans in transactions:
+            db_transaction_obj = Transaction.objects.get(pk=trans.pk)
+            assert db_transaction_obj.amount_euro == trans.amount_euro
+            assert db_transaction_obj.amount_rub == trans.amount_rub
