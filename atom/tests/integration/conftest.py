@@ -70,7 +70,7 @@ def status_groups(db):
 
     # Создаем группу статусов для заказов
     order_group, _ = StatusGroup.objects.get_or_create(
-        code="order_status",
+        code="ORDER_STATUS_CONFIG",
         content_type=order_content_type,
         defaults={
             "name": "Статусы заказа",
@@ -88,7 +88,7 @@ def status_groups(db):
 
     # Создаем группу статусов для доставок
     delivery_group, _ = StatusGroup.objects.get_or_create(
-        code="delivery_status",
+        code="DELIVERY_STATUS_CONFIG",
         content_type=delivery_content_type,
         defaults={
             "name": "Статусы доставки",
@@ -121,7 +121,7 @@ def statuses(status_groups):
     order_group, delivery_group = status_groups
 
     # Создаем статусы заказов
-    order_statuses = {
+    ORDER_STATUS_CONFIGes = {
         "new": Status.objects.get_or_create(
             group=order_group,
             code="new",
@@ -149,7 +149,7 @@ def statuses(status_groups):
     }
 
     # Создаем статусы доставок
-    delivery_statuses = {
+    DELIVERY_STATUS_CONFIGes = {
         "new": Status.objects.get_or_create(
             group=delivery_group,
             code="new",
@@ -190,8 +190,8 @@ def statuses(status_groups):
     }
 
     return {
-        "order": order_statuses,
-        "delivery": delivery_statuses,  # Используем delivery_statuses для посылок
+        "order": ORDER_STATUS_CONFIGes,
+        "delivery": DELIVERY_STATUS_CONFIGes,  # Используем DELIVERY_STATUS_CONFIGes для посылок
     }
 
 

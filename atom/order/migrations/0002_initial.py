@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
             model_name="order",
             name="status",
             field=models.ForeignKey(
-                limit_choices_to={"group__code": "order_status"},
+                limit_choices_to={"group__code": "ORDER_STATUS_CONFIG"},
                 on_delete=django.db.models.deletion.PROTECT,
                 related_name="orders_with_status",
                 to="status.status",

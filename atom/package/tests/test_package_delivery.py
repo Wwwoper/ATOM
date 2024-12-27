@@ -10,21 +10,21 @@ from balance.models import Transaction
 
 
 @pytest.fixture
-def delivery_status_group(db):
+def DELIVERY_STATUS_CONFIG_group(db):
     """Фикстура для создания группы статусов доставки."""
-    return StatusGroup.objects.get(code="delivery_status")
+    return StatusGroup.objects.get(code="DELIVERY_STATUS_CONFIG")
 
 
 @pytest.fixture
-def new_status(delivery_status_group):
+def new_status(DELIVERY_STATUS_CONFIG_group):
     """Фикстура для получения статуса 'новый'."""
-    return Status.objects.get(group=delivery_status_group, code="new")
+    return Status.objects.get(group=DELIVERY_STATUS_CONFIG_group, code="new")
 
 
 @pytest.fixture
-def paid_status(delivery_status_group):
+def paid_status(DELIVERY_STATUS_CONFIG_group):
     """Фикстура для получения статуса 'оплачен'."""
-    return Status.objects.get(group=delivery_status_group, code="paid")
+    return Status.objects.get(group=DELIVERY_STATUS_CONFIG_group, code="paid")
 
 
 @pytest.fixture
@@ -205,7 +205,7 @@ class TestPackageDelivery:
         error_dict = exc_info.value.message_dict
         assert "Для этой посылки уже существует доставка" in error_dict["package"]
 
-    def test_paid_delivery_status_change(
+    def test_paid_DELIVERY_STATUS_CONFIG_change(
         self, valid_delivery_data, paid_status, new_status
     ):
         """Тест запрета изменения статуса оплаченной доставки."""

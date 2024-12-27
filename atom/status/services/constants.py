@@ -22,7 +22,7 @@
     descriptions = get_status_descriptions(Order)
 
     # Получение статусов с фильтрацией по группе
-    names = get_status_names(Delivery, group_code='delivery_status')
+    names = get_status_names(Delivery, group_code='DELIVERY_STATUS_CONFIG')
 
     # Получение списка для выбора
     choices = get_status_choices(Order)

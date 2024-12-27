@@ -6,7 +6,7 @@
 
 Формат конфигурации:
 {
-    "group_code": {                    # Код группы статусов (например "order_status")
+    "group_code": {                    # Код группы статусов (например "ORDER_STATUS_CONFIG")
         "name": str,                   # Название группы статусов
         "model": str,                  # Путь к модели в формате "app.Model"
         "allowed_status_transitions": {# Словарь разрешенных переходов
@@ -34,8 +34,8 @@
 }
 
 Примеры конфигурации:
-    ORDER_STATUS = {
-        "order_status": {
+    ORDER_STATUS_CONFIG = {
+        "ORDER_STATUS_CONFIG": {
             "name": "Статусы заказа",
             "model": "order.Order",
             "allowed_status_transitions": {
@@ -65,8 +65,8 @@
 
 from balance.services.constants import TransactionTypeChoices
 
-ORDER_status = {
-    "order_status": {
+ORDER_STATUS_CONFIG = {
+    "ORDER_STATUS_CONFIG": {
         "name": "Статусы заказа",
         "model": "order.Order",
         "allowed_status_transitions": {
@@ -103,7 +103,7 @@ ORDER_status = {
 }
 
 DELIVERY_STATUS_CONFIG = {
-    "delivery_status": {
+    "DELIVERY_STATUS_CONFIG": {
         "name": "Статусы доставки",
         "model": "package.PackageDelivery",
         "allowed_status_transitions": {

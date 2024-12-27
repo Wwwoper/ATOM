@@ -136,7 +136,7 @@ class TestPackage:
         company = TransportCompany.objects.create(name="Test Company", is_active=True)
 
         # Получаем статус для доставки
-        status_group = StatusGroup.objects.get(code="delivery_status")
+        status_group = StatusGroup.objects.get(code="DELIVERY_STATUS_CONFIG")
         status = Status.objects.get(group=status_group, code="new")
 
         # Создаем доставку для посылки

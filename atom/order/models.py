@@ -96,7 +96,7 @@ class Order(models.Model):
         "status.Status",
         on_delete=models.PROTECT,
         verbose_name="Статус заказа",
-        limit_choices_to={"group__code": "order_status"},
+        limit_choices_to={"group__code": "ORDER_STATUS_CONFIG"},
         related_name="orders_with_status",
     )
     internal_number = models.CharField(

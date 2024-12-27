@@ -25,11 +25,11 @@
 Примеры использования:
     # Обработка оплаты заказа
     strategy = PaidOrderStrategy()
-    strategy.handle_order_status(order)
+    strategy.handle_ORDER_STATUS_CONFIG(order)
 
     # Обработка возврата
     strategy = RefundedOrderStrategy()
-    strategy.handle_order_status(order)
+    strategy.handle_ORDER_STATUS_CONFIG(order)
 
 Примечания:
     - Все финансовые операции выполняются атомарно
@@ -49,7 +49,7 @@ class OrderStrategy(ABC):
     """Стратегия для работы с заказами."""
 
     @abstractmethod
-    def handle_order_status(self, order) -> None:
+    def handle_ORDER_STATUS_CONFIG(self, order) -> None:
         """Обработать заказ согласно стратегии."""
         pass
 
@@ -57,7 +57,7 @@ class OrderStrategy(ABC):
 class NewOrderStrategy(OrderStrategy):
     """Стратегия для обработки нового заказа."""
 
-    def handle_order_status(self, order) -> None:
+    def handle_ORDER_STATUS_CONFIG(self, order) -> None:
         """Обработать новый заказ."""
         print(f"Обработка нового заказа {order.id}")
         pass
@@ -71,7 +71,7 @@ class PaidOrderStrategy(OrderStrategy):
         self.transaction_service = TransactionProcessor()
         self.order_service = OrderService()
 
-    def handle_order_status(self, order) -> None:
+    def handle_ORDER_STATUS_CONFIG(self, order) -> None:
         """Обработать оплаченный заказ."""
         # Проверка на повторную оплату
         if order.paid_at:
@@ -103,7 +103,7 @@ class RefundedOrderStrategy(OrderStrategy):
         self.transaction_service = TransactionProcessor()
         self.order_service = OrderService()
 
-    def handle_order_status(self, order):
+    def handle_ORDER_STATUS_CONFIG(self, order):
         """Обработать возвращенный заказ."""
         print(f"Обработка возвращенного заказа {order.id}")
         # # Обнулить расчетные поля profit, expense, paid_at у заказа

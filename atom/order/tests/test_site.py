@@ -90,8 +90,10 @@ class TestSite:
     def test_total_orders_property(self, valid_site_data, user):
         """Тест подсчета общего количества заказов."""
         site = Site.objects.create(**valid_site_data)
-        default_status = Status.objects.get(group__code="order_status", is_default=True)
-        paid_status = Status.objects.get(group__code="order_status", code="paid")
+        default_status = Status.objects.get(
+            group__code="ORDER_STATUS_CONFIG", is_default=True
+        )
+        paid_status = Status.objects.get(group__code="ORDER_STATUS_CONFIG", code="paid")
 
         # Создаем заказы в разных статусах
         Order.objects.create(
@@ -118,8 +120,10 @@ class TestSite:
     def test_total_profit_property(self, valid_site_data, user):
         """Тест подсчета общей прибыли от оплаченных заказов."""
         site = Site.objects.create(**valid_site_data)
-        default_status = Status.objects.get(group__code="order_status", is_default=True)
-        paid_status = Status.objects.get(group__code="order_status", code="paid")
+        default_status = Status.objects.get(
+            group__code="ORDER_STATUS_CONFIG", is_default=True
+        )
+        paid_status = Status.objects.get(group__code="ORDER_STATUS_CONFIG", code="paid")
 
         # Создаем оплаченные заказы
         Order.objects.create(
@@ -175,7 +179,9 @@ class TestSite:
         """Тест запрета удаления сайта с существующими заказами."""
         # Создаем сайт
         site = Site.objects.create(**valid_site_data)
-        default_status = Status.objects.get(group__code="order_status", is_default=True)
+        default_status = Status.objects.get(
+            group__code="ORDER_STATUS_CONFIG", is_default=True
+        )
 
         # Создаем заказ для сайта
         Order.objects.create(

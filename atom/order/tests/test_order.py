@@ -58,7 +58,9 @@ class TestOrder:
     def valid_order_data(self, site, user):
         """Фикстура с валидными данными заказа."""
         # Получаем существующий статус по умолчанию для заказов
-        default_status = Status.objects.get(group__code="order_status", is_default=True)
+        default_status = Status.objects.get(
+            group__code="ORDER_STATUS_CONFIG", is_default=True
+        )
 
         return {
             "user": user,
@@ -134,7 +136,7 @@ class TestOrder:
         order = Order.objects.create(**valid_order_data)
 
         # Получаем статус "paid" из базы данных
-        status_group = StatusGroup.objects.get(code="order_status")
+        status_group = StatusGroup.objects.get(code="ORDER_STATUS_CONFIG")
         paid_status = Status.objects.get(group=status_group, code="paid")
 
         # Оплачиваем заказ
@@ -167,7 +169,7 @@ class TestOrder:
         order = Order.objects.create(**valid_order_data)
 
         # Получаем статус "paid" из базы данных
-        status_group = StatusGroup.objects.get(code="order_status")
+        status_group = StatusGroup.objects.get(code="ORDER_STATUS_CONFIG")
         paid_status = Status.objects.get(group=status_group, code="paid")
 
         # Оплачиваем заказ
@@ -186,7 +188,7 @@ class TestOrder:
         assert order.paid_at is None
 
         # Получаем статус "paid" из базы данных
-        status_group = StatusGroup.objects.get(code="order_status")
+        status_group = StatusGroup.objects.get(code="ORDER_STATUS_CONFIG")
         paid_status = Status.objects.get(group=status_group, code="paid")
 
         # Меняем статус на "paid" и устанавливаем paid_at

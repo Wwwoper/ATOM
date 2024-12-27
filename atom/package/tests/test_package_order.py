@@ -7,21 +7,21 @@ from status.models import Status, StatusGroup
 
 
 @pytest.fixture
-def order_status_group(db):
+def ORDER_STATUS_CONFIG_group(db):
     """Фикстура для создания группы статусов заказа."""
-    return StatusGroup.objects.get(code="order_status")
+    return StatusGroup.objects.get(code="ORDER_STATUS_CONFIG")
 
 
 @pytest.fixture
-def paid_status(order_status_group):
+def paid_status(ORDER_STATUS_CONFIG_group):
     """Фикстура для получения статуса 'оплачен'."""
-    return Status.objects.get(group=order_status_group, code="paid")
+    return Status.objects.get(group=ORDER_STATUS_CONFIG_group, code="paid")
 
 
 @pytest.fixture
-def new_status(order_status_group):
+def new_status(ORDER_STATUS_CONFIG_group):
     """Фикстура для получения статуса 'новый'."""
-    return Status.objects.get(group=order_status_group, code="new")
+    return Status.objects.get(group=ORDER_STATUS_CONFIG_group, code="new")
 
 
 @pytest.fixture

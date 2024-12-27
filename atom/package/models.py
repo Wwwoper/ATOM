@@ -220,7 +220,7 @@ class PackageDelivery(models.Model):
         "status.Status",
         on_delete=models.CASCADE,
         verbose_name="Статус",
-        limit_choices_to={"group__code": "delivery_status"},
+        limit_choices_to={"group__code": "DELIVERY_STATUS_CONFIG"},
         related_name="packages_with_status",
         # FIXME Добавить выбор по умолчанию статуса Новая
     )

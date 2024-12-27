@@ -125,7 +125,9 @@ class TestTransportCompany:
         PackageDelivery.objects.create(
             package=package,
             transport_company=company,
-            status=Status.objects.get(group__code="delivery_status", is_default=True),
+            status=Status.objects.get(
+                group__code="DELIVERY_STATUS_CONFIG", is_default=True
+            ),
             tracking_number="TRACK-123",
             weight=1.5,
             shipping_cost_rub=1000.00,

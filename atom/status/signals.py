@@ -16,12 +16,11 @@
     4. Настройка правил переходов между статусами
 
 Группы статусов:
-    - ORDER_STATUS: Статусы для заказов
-    - DELIVERY_STATUS: Статусы для доставок
+    - ORDER_STATUS_CONFIG: Статусы для заказов
+    - DELIVERY_STATUS_CONFIG: Статусы для доставок
 
 Примеры конфигурации:
-    DELIVERY_STATUS_CONFIG = {
-        "delivery_status": {
+        "DELIVERY_STATUS_CONFIG": {
             "model": "package.Delivery",
             "name": "Статусы доставки",
             "status": [
@@ -44,7 +43,10 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
 
-from .services.initial_data import DELIVERY_STATUS_CONFIG, ORDER_status
+from .services.initial_data import (
+    ORDER_STATUS_CONFIG,
+    DELIVERY_STATUS_CONFIG,
+)
 
 
 def initialize_status_group(group_code, group_data, StatusGroup, Status):
@@ -108,7 +110,10 @@ def create_default_status(sender, **kwargs):
         Status = apps.get_model("status", "Status")
 
         # Объединяем все конфигурации статусов
-        all_status = {**ORDER_status, **DELIVERY_STATUS_CONFIG}
+        all_status = {
+            **ORDER_STATUS_CONFIG,
+            **DELIVERY_STATUS_CONFIG,
+        }
 
         # Единый цикл для всех групп статусов
         for group_code, group_data in all_status.items():

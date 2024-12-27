@@ -153,13 +153,13 @@ class OrderStatusService:
             ValidationError: Если невозможно получить статус по умолчанию
         """
         default_status_code = get_default_status(
-            order.__class__, group_code="order_status"
+            order.__class__, group_code="ORDER_STATUS_CONFIG"
         )
         if not default_status_code:
             raise ValidationError("Невозможно создать заказ без статуса по умолчанию")
 
         order.status = Status.objects.get(
-            code=default_status_code, group__code="order_status"
+            code=default_status_code, group__code="ORDER_STATUS_CONFIG"
         )
         return True
 

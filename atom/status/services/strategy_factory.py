@@ -32,7 +32,7 @@
 Примеры использования:
     # Получение стратегии для заказа
     strategy = OrderStatusStrategyFactory.get_strategy(order.status)
-    strategy.handle_order_status(order)
+    strategy.handle_ORDER_STATUS_CONFIG(order)
 
     # Получение стратегии для доставки
     strategy = DeliveryStatusStrategyFactory.get_strategy(delivery.status)

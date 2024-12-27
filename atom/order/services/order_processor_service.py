@@ -62,4 +62,4 @@ class OrderProcessor:
             ValidationError: Если невозможно применить стратегию обработки
         """
         strategy = self.strategy_factory.get_strategy(order.status)
-        strategy.handle_order_status(order)
+        strategy.handle_ORDER_STATUS_CONFIG(order)

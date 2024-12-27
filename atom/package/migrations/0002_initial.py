@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
             model_name="packagedelivery",
             name="status",
             field=models.ForeignKey(
-                limit_choices_to={"group__code": "delivery_status"},
+                limit_choices_to={"group__code": "DELIVERY_STATUS_CONFIG"},
                 on_delete=django.db.models.deletion.CASCADE,
                 related_name="packages_with_status",
                 to="status.status",

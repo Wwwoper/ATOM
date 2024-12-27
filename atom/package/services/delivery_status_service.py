@@ -103,7 +103,7 @@ class DeliveryStatusService:
     def _set_initial_status(self, delivery: "Delivery") -> bool:
         """Установка начального статуса для новой доставки."""
         default_status_code = get_default_status(
-            delivery.__class__, group_code="delivery_status"
+            delivery.__class__, group_code="DELIVERY_STATUS_CONFIG"
         )
         if not default_status_code:
             raise ValidationError(
@@ -111,7 +111,7 @@ class DeliveryStatusService:
             )
 
         delivery.status = Status.objects.get(
-            code=default_status_code, group__code="delivery_status"
+            code=default_status_code, group__code="DELIVERY_STATUS_CONFIG"
         )
         return True
 

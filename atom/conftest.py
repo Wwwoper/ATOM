@@ -32,7 +32,10 @@ from django.contrib.auth import get_user_model
 from status.models import Status, StatusGroup
 from balance.services.constants import TransactionTypeChoices
 from django.contrib.contenttypes.models import ContentType
-from status.services.initial_data import ORDER_status, DELIVERY_STATUS_CONFIG
+from status.services.initial_data import (
+    ORDER_STATUS_CONFIG,
+    DELIVERY_STATUS_CONFIG,
+)
 
 User = get_user_model()
 
@@ -160,7 +163,7 @@ def paid_order(db, user, site, balance):
     from order.models import Order
     from status.models import Status
 
-    paid_status = Status.objects.get(code="paid", group__code="order_status")
+    paid_status = Status.objects.get(code="paid", group__code="ORDER_STATUS_CONFIG")
     return Order.objects.create(
         user=user,
         site=site,
@@ -179,10 +182,10 @@ def order_status_group(db, content_type_model):
     """Фикстура для создания группы статусов заказа."""
     from status.models import StatusGroup
 
-    config = ORDER_status["order_status"]
+    config = ORDER_STATUS_CONFIG["ORDER_STATUS_CONFIG"]
 
     status_group, _ = StatusGroup.objects.get_or_create(
-        code="order_status",
+        code="ORDER_STATUS_CONFIG",
         content_type=content_type_model,
         defaults={
             "name": config["name"],
@@ -194,18 +197,18 @@ def order_status_group(db, content_type_model):
 
 
 @pytest.fixture
-def statuses(db, order_status_group):
+def statuses(db, ORDER_STATUS_CONFIG_group):
     """Фикстура для создания всех статусов заказа."""
     from status.models import Status
 
     statuses = {"order": {}}
-    config = ORDER_status["order_status"]["status"]
+    config = ORDER_STATUS_CONFIG["ORDER_STATUS_CONFIG"]["status"]
 
     # Создаем статусы из конфигурации
     for status_config in config:
         status, _ = Status.objects.get_or_create(
             code=status_config["code"],
-            group=order_status_group,
+            group=ORDER_STATUS_CONFIG_group,
             defaults={
                 "name": status_config["name"],
                 "description": status_config["description"],
@@ -219,7 +222,7 @@ def statuses(db, order_status_group):
 
 
 @pytest.fixture
-def delivery_status(db):
+def delivery_status_group(db, content_type_model):
     """Фикстура для создания статуса доставки."""
     from status.models import Status, StatusGroup
     from balance.services.constants import TransactionTypeChoices
@@ -230,7 +233,7 @@ def delivery_status(db):
     content_type = ContentType.objects.get_for_model(PackageDelivery)
 
     status_group, _ = StatusGroup.objects.get_or_create(
-        code="delivery_status",
+        code="DELIVERY_STATUS_CONFIG",
         content_type=content_type,  # Используем ContentType для PackageDelivery
         defaults={
             "name": "Статусы доставки",
@@ -260,13 +263,13 @@ def delivery_status(db):
 
 
 @pytest.fixture
-def paid_delivery_status(db, delivery_status):
+def paid_delivery_status(db, delivery_status_group):
     """Фикстура для создания статуса оплаченной доставки."""
     from status.models import Status
 
     status, _ = Status.objects.get_or_create(
         code="paid",
-        group=delivery_status.group,
+        group=delivery_status_group,
         defaults={
             "name": "Оплачена",
             "description": "Доставка оплачена",
@@ -278,13 +281,13 @@ def paid_delivery_status(db, delivery_status):
 
 
 @pytest.fixture
-def cancelled_delivery_status(db, delivery_status):
+def cancelled_delivery_status(db, delivery_status_group):
     """Фикстура для создания статуса отмененной доставки."""
     from status.models import Status
 
     status, _ = Status.objects.get_or_create(
         code="cancelled",
-        group=delivery_status.group,
+        group=delivery_status_group,
         defaults={
             "name": "Отменена",
             "description": "Доставка отменена",
@@ -296,13 +299,13 @@ def cancelled_delivery_status(db, delivery_status):
 
 
 @pytest.fixture
-def reexport_delivery_status(db, delivery_status):
+def reexport_delivery_status(db, delivery_status_group):
     """Фикстура для создания статуса реэкспорта доставки."""
     from status.models import Status
 
     status, _ = Status.objects.get_or_create(
         code="reexport",
-        group=delivery_status.group,
+        group=delivery_status_group,
         defaults={
             "name": "Реэкспорт",
             "description": "Доставка отправлена на реэкспорт",
