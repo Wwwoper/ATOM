@@ -57,8 +57,16 @@ class TestBalance:
         with pytest.raises(ValidationError):
             balance.full_clean()  # Проверяем валидацию до сохранения
 
-    def test_direct_balance_update(self, balance):
-        """Тест запрета прямого изменения баланса."""
+    def test_direct_balance_update(self, user):
+        """Тест запрета прямого изменения баланса.
+
+        Проверяет, что:
+        1. Прямое изменение баланса без флага вызывает ошибку
+        2. Изменение с флагом allow_balance_update=True проходит успешно
+        """
+        # Получаем баланс через пользователя
+        balance = user.balance
+
         # Попытка прямого изменения
         balance.balance_euro = Decimal("200.00")
 

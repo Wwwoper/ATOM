@@ -133,16 +133,15 @@ class TestPackageDelivery:
         """Тест запрета удаления оплаченной доставки."""
         delivery = PackageDelivery.objects.create(**valid_delivery_data)
 
-        # Меняем статус на оплачен
+        # Меняем статус на оплачен и добавляем дату оплаты
         delivery.status = paid_status
-        delivery.save()
+        delivery.paid_at = timezone.now()
+        delivery.save(skip_status_processing=True)
 
         # Проверяем, что нельзя удалить оплаченную доставку
         with pytest.raises(ValidationError) as exc_info:
             delivery.delete()
-        assert "Невозможно удалить доставку с оплаченным статусом" in str(
-            exc_info.value
-        )
+        assert "Невозможно удалить оплаченную доставку" in str(exc_info.value)
 
     def test_paid_delivery_cost_update(self, valid_delivery_data, paid_status):
         """Тест запрета изменения стоимости оплаченной доставки."""
@@ -198,7 +197,7 @@ class TestPackageDelivery:
         # Создаем первую доставку
         PackageDelivery.objects.create(**valid_delivery_data)
 
-        # Пытаемся создать вторую доставку для той же посылки
+        # Пы��аемся создать вторую доставку для той же посылки
         with pytest.raises(ValidationError) as exc_info:
             delivery = PackageDelivery(**valid_delivery_data)
             delivery.full_clean()

@@ -45,7 +45,7 @@ class SiteAdmin(admin.ModelAdmin):
     def display_total_profit(self, obj):
         """Отображение общей прибыли."""
         total_profit = getattr(obj, "total_profit", 0)
-        return format_html("₽{}", "{:.2f}".format(float(total_profit)))
+        return format_html("₽{}", f"{float(total_profit):.2f}")
 
     display_total_profit.short_description = "Общая прибыль"
 
@@ -121,19 +121,19 @@ class OrderAdmin(admin.ModelAdmin):
 
     def display_amount_euro(self, obj):
         """Отображение суммы в евро."""
-        return format_html("€{}", "{:,.2f}".format(obj.amount_euro))
+        return format_html("€{}", f"{obj.amount_euro:,.2f}")
 
     display_amount_euro.short_description = "Сумма (EUR)"
 
     def display_amount_rub(self, obj):
         """Отображение суммы в рублях."""
-        return format_html("₽{}", "{:,.2f}".format(obj.amount_rub))
+        return format_html("₽{}", f"{obj.amount_rub:,.2f}")
 
     display_amount_rub.short_description = "Сумма (RUB)"
 
     def display_profit(self, obj):
         """Отображение прибыли."""
-        return format_html("₽{}", "{:,.2f}".format(obj.profit))
+        return format_html("₽{}", f"{obj.profit:,.2f}")
 
     display_profit.short_description = "Прибыль"
 

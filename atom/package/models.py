@@ -361,6 +361,6 @@ class PackageDelivery(models.Model):
         """
         if self.status.code == "paid":
             raise ValidationError(
-                {"delivery": "Невозможно удалить доставку с оплаченным статусом"}
+                {"delivery": "Невозможно удалить оплаченную доставку"}
             )
         return super().delete(*args, **kwargs)

@@ -46,6 +46,7 @@
 """
 
 from django.apps import apps
+from django.core.exceptions import ValidationError
 
 from .constants import get_status_codes
 
@@ -78,13 +79,13 @@ class OrderStatusStrategyFactory:
     @classmethod
     def get_strategy(cls, status):
         """
-        Получить стратегию по статусу заказа.
+        Получить стратегию по статусу.
 
         Args:
-            status: Статус заказа или его код
+            status: Статус или его код
 
         Returns:
-            BaseOrderStrategy: Экземпляр стратегии для обработки статуса
+            BaseStrategy: Экземпляр стратегии для обработки статуса
 
         Raises:
             ValidationError: Если стратегия для статуса не найдена
@@ -92,7 +93,7 @@ class OrderStatusStrategyFactory:
         status_code = status.code if hasattr(status, "code") else status
         strategy_class = cls._get_strategies().get(status_code)
         if not strategy_class:
-            raise ValueError(
+            raise ValidationError(
                 f"Стратегия для статуса {status} (код: {status_code}) не найдена"
             )
         return strategy_class()
@@ -128,13 +129,13 @@ class DeliveryStatusStrategyFactory:
     @classmethod
     def get_strategy(cls, status):
         """
-        Получить стратегию по статусу доставки.
+        Получить стратегию по статусу.
 
         Args:
-            status: Статус доставки или его код
+            status: Статус или его код
 
         Returns:
-            PackageDeliveryStrategy: Экземпляр стратегии для обработки статуса
+            BaseStrategy: Экземпляр стратегии для обработки статуса
 
         Raises:
             ValidationError: Если стратегия для статуса не найдена
@@ -142,7 +143,7 @@ class DeliveryStatusStrategyFactory:
         status_code = status.code if hasattr(status, "code") else status
         strategy_class = cls._get_strategies().get(status_code)
         if not strategy_class:
-            raise ValueError(
+            raise ValidationError(
                 f"Стратегия для статуса {status} (код: {status_code}) не найдена"
             )
         return strategy_class()

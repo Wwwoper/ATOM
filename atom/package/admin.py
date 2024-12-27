@@ -29,19 +29,19 @@ class PackageAdmin(admin.ModelAdmin):
 
     def display_shipping_cost_eur(self, obj):
         """Отображение стоимости доставки."""
-        return format_html("€{}", "{:.2f}".format(obj.shipping_cost_eur))
+        return format_html("€{}", f"{obj.shipping_cost_eur:.2f}")
 
     display_shipping_cost_eur.short_description = "Стоимость доставки"
 
     def display_fee_cost_eur(self, obj):
         """Отображение комиссии."""
-        return format_html("€{}", "{:.2f}".format(obj.fee_cost_eur))
+        return format_html("€{}", f"{obj.fee_cost_eur:.2f}")
 
     display_fee_cost_eur.short_description = "Комиссия"
 
     def display_total_cost_eur(self, obj):
         """Отображение общей стоимости."""
-        return format_html("€{}", "{:.2f}".format(obj.total_cost_eur))
+        return format_html("€{}", f"{obj.total_cost_eur:.2f}")
 
     display_total_cost_eur.short_description = "Общая стоимость"
 
@@ -82,7 +82,7 @@ class PackageDeliveryAdmin(admin.ModelAdmin):
     ordering = ("-created_at",)
 
     def display_shipping_cost_rub(self, obj):
-        """Отображение стоимости доставки в рублях."""
+        """Отображение стоимости доставк�� в рублях."""
         return format_html("₽{}", "{:.2f}".format(obj.shipping_cost_rub))
 
     display_shipping_cost_rub.short_description = "Стоимость доставки"

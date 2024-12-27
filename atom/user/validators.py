@@ -69,7 +69,7 @@ class PhoneNumberValidator:
 
         # Проверяем базовый формат
         if not self.pattern.match(value):
-            raise ValidationError("Неверный формат номера тел��фона")
+            raise ValidationError("Неверный формат номера телефона")
 
         # Очищаем номер от пробелов и других символов
         cleaned_number = re.sub(r"[\s\(\)-]", "", value)
@@ -78,7 +78,7 @@ class PhoneNumberValidator:
         if not (10 <= len(cleaned_number) <= 12):
             raise ValidationError("Неверный формат номера телефона")
 
-        # Проверяем, что после очистки остались только цифры и возможный плюс в начале
+        # Проверяем, что после очистк�� остались только цифры и возможный плюс в начале
         if not re.match(r"^\+?\d+$", cleaned_number):
             raise ValidationError("Неверный формат номера телефона")
 

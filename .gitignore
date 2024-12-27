@@ -171,3 +171,4 @@ cython_debug/
 .pypirc
 .vscode/
 .DS_Store
+create_superuser.py
