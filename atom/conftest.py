@@ -32,6 +32,7 @@ from django.contrib.auth import get_user_model
 from status.models import Status, StatusGroup
 from balance.services.constants import TransactionTypeChoices
 from django.contrib.contenttypes.models import ContentType
+from status.services.initial_data import ORDER_status, DELIVERY_STATUS_CONFIG
 
 User = get_user_model()
 
@@ -39,8 +40,13 @@ User = get_user_model()
 @pytest.fixture
 def user(db):
     """Создание пользователя для тестов."""
+    import uuid
+
+    unique_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
     return UserService.create_user(
-        username="test_user", email="test@example.com", password="test_password"
+        username=f"test_user_{uuid.uuid4().hex[:8]}",
+        email=unique_email,
+        password="test_password",
     )
 
 
@@ -67,8 +73,8 @@ def balance(db, user):
 @pytest.fixture
 def balance_with_money(db, balance):
     """Создание баланса с начальными средствами для тестов."""
-    balance.balance_euro = Decimal("100.00")
-    balance.balance_rub = Decimal("10000.00")
+    balance.balance_euro = Decimal("1000.00")  # Увеличиваем начальный баланс
+    balance.balance_rub = Decimal("100000.00")  # Увеличиваем начальный баланс
     balance.save(allow_balance_update=True)
     return balance
 
@@ -117,12 +123,15 @@ def status(db, status_group):
 
 @pytest.fixture
 def site(db):
-    """Фикстура для создания тестового сайта."""
+    """Создание сайта для тестов."""
+    import uuid
     from order.models import Site
+    from decimal import Decimal
 
+    unique_url = f"https://test-{uuid.uuid4().hex[:8]}.com"
     return Site.objects.create(
         name="Test Site",
-        url="https://test.com",
+        url=unique_url,  # Используем уникальный URL
         organizer_fee_percentage=Decimal("10.00"),
     )
 
@@ -169,43 +178,44 @@ def paid_order(db, user, site, balance):
 def order_status_group(db, content_type_model):
     """Фикстура для создания группы статусов заказа."""
     from status.models import StatusGroup
-    from balance.services.constants import TransactionTypeChoices
 
-    status_group, created = StatusGroup.objects.get_or_create(
+    config = ORDER_status["order_status"]
+
+    status_group, _ = StatusGroup.objects.get_or_create(
         code="order_status",
         content_type=content_type_model,
         defaults={
-            "name": "Статусы заказа",
-            "allowed_status_transitions": {
-                "new": ["paid"],
-                "paid": ["refunded"],
-                "refunded": ["new"],
-            },
-            "transaction_type_by_status": {
-                "paid": TransactionTypeChoices.EXPENSE.value,
-                "refunded": TransactionTypeChoices.PAYBACK.value,
-            },
+            "name": config["name"],
+            "allowed_status_transitions": config["allowed_status_transitions"],
+            "transaction_type_by_status": config["transaction_type_by_status"],
         },
     )
     return status_group
 
 
 @pytest.fixture
-def status(db, order_status_group):
-    """Фикстура для создания статуса."""
+def statuses(db, order_status_group):
+    """Фикстура для создания всех статусов заказа."""
     from status.models import Status
 
-    status, created = Status.objects.get_or_create(
-        code="new",
-        group=order_status_group,
-        defaults={
-            "name": "Новый",
-            "description": "Тестовый статус",
-            "is_default": True,
-            "order": 10,
-        },
-    )
-    return status
+    statuses = {"order": {}}
+    config = ORDER_status["order_status"]["status"]
+
+    # Создаем статусы из конфигурации
+    for status_config in config:
+        status, _ = Status.objects.get_or_create(
+            code=status_config["code"],
+            group=order_status_group,
+            defaults={
+                "name": status_config["name"],
+                "description": status_config["description"],
+                "is_default": status_config.get("is_default", False),
+                "order": status_config["order"],
+            },
+        )
+        statuses["order"][status_config["code"]] = status
+
+    return statuses
 
 
 @pytest.fixture

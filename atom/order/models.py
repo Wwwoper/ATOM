@@ -147,14 +147,57 @@ class Order(models.Model):
         if self.amount_rub <= 0:
             raise ValidationError({"amount_rub": "Цена в рублях должна быть больше 0"})
 
+        # Проверка изменения сумм после оплаты
+        if self.pk:
+            old_order = Order.objects.get(pk=self.pk)
+            if old_order.status.code == "paid":
+                if (
+                    self.amount_euro != old_order.amount_euro
+                    or self.amount_rub != old_order.amount_rub
+                ):
+                    raise ValidationError(
+                        {
+                            "amount_euro": "Невозможно изменить сумму после оплаты",
+                            "amount_rub": "Невозможно изменить сумму после оплаты",
+                        }
+                    )
+                # Проверка изменения статуса
+                if self.status != old_order.status:
+                    raise ValidationError(
+                        {"status": "Невозможно изменить статус оплаченного заказа"}
+                    )
+
     def save(self, *args, **kwargs):
         """Сохранение модели."""
         skip_status_processing = kwargs.pop("skip_status_processing", False)
 
-        status_service = OrderStatusService()
-
-        # Обработка статуса
-        status_service.process_status_change(self, skip_status_processing)
+        if self.pk:  # Если объект уже существует
+            old_order = Order.objects.get(pk=self.pk)
+            if old_order.status.code == "paid":
+                # Восстанавливаем значения
+                self.amount_euro = old_order.amount_euro
+                self.amount_rub = old_order.amount_rub
+                self.paid_at = old_order.paid_at
+                self.status = old_order.status
+                self.expense = old_order.expense
+                self.profit = old_order.profit
 
         self.clean()
+
+        # Обработка статуса если не пропускаем
+        if not skip_status_processing:
+            status_service = OrderStatusService()
+            status_service.process_status_change(self)
+
         super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """
+        Удаление заказа с проверкой статуса.
+
+        Raises:
+            ValidationError: Если заказ оплачен
+        """
+        if self.status.code == "paid":
+            raise ValidationError("Невозможно удалить оплаченный заказ")
+        return super().delete(*args, **kwargs)

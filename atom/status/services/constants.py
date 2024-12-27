@@ -53,7 +53,7 @@ def get_status_codes(model_class, group_code=None):
     return {status.code: status.code for status in queryset}
 
 
-def get_status_choices(model_class, group_code=None):
+def get_status_choices(model_class, group_code=None) -> list:
     """Получить список статусов для выбора.
 
     Args:
@@ -61,12 +61,21 @@ def get_status_choices(model_class, group_code=None):
         group_code: Код группы статусов (опционально)
     """
     content_type = ContentType.objects.get_for_model(model_class)
-    queryset = Status.objects.filter(group__content_type=content_type)
+    queryset = Status.objects.filter(group__content_type=content_type).order_by("order")
 
     if group_code:
         queryset = queryset.filter(group__code=group_code)
 
-    return [(status.code, status.name) for status in queryset.order_by("order")]
+    # Получаем уникальные статусы, сохраняя первое вхождение каждого кода
+    seen_codes = set()
+    unique_statuses = []
+
+    for status in queryset:
+        if status.code not in seen_codes:
+            seen_codes.add(status.code)
+            unique_statuses.append((status.code, status.name))
+
+    return unique_statuses
 
 
 def get_default_status(model_class, group_code=None):

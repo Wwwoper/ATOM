@@ -1,8 +1,7 @@
 """Сервис для работы с расширенными методами обработки заказов."""
 
 from decimal import Decimal
-
-from django.utils import timezone
+from django.core.exceptions import ValidationError
 
 
 class OrderService:
@@ -25,13 +24,9 @@ class OrderService:
         ).quantize(two_places)
         order.profit = (order.amount_rub - order.expense).quantize(two_places)
 
-        # Установка даты оплаты, если её еще нет
-        if not order.paid_at:
-            order.paid_at = timezone.now()
-
         # Сохраняем изменения, но пропускаем валидацию, так как она будет выполнена в модели
         order.save(
-            update_fields=["expense", "profit", "paid_at"],
+            update_fields=["expense", "profit"],
             skip_status_processing=True,
         )
 
@@ -56,6 +51,54 @@ class OrderService:
             skip_status_processing=True,
         )
 
+    def validate_transaction_data(self, order) -> None:
+        """
+        Валидация данных заказа перед создание�� транзакции.
+
+        Args:
+            order: Объект заказа
+
+        Raises:
+            ValidationError: Если данные не прошли валидацию
+        """
+        if not order.amount_euro or not order.amount_rub:
+            raise ValidationError({"order": "Не указаны суммы для транзакции"})
+
+        if order.amount_euro <= 0 or order.amount_rub <= 0:
+            raise ValidationError(
+                {"order": "Суммы транзакции должны быть положительными"}
+            )
+
+        if not order.user.balance:
+            raise ValidationError({"order": "У пользователя не создан баланс"})
+
+    def validate_serialized_transaction_data(self, data: dict) -> None:
+        """
+        Валидация сериализованных данных для транзакции.
+
+        Args:
+            data: Словарь с данными для транзакции
+
+        Raises:
+            ValidationError: Если данные не прошли валидацию
+        """
+        if not data:
+            raise ValidationError({"order": "Невозможно создать транзакцию для заказа"})
+
+        # Проверяем обязательные поля
+        required_fields = ["balance", "transaction_type", "amount_euro", "amount_rub"]
+        for field in required_fields:
+            if field not in data:
+                raise ValidationError(
+                    {"order": f"Отсутствует обязательное поле {field}"}
+                )
+
+        # Проверяем суммы
+        if data["amount_euro"] <= 0 or data["amount_rub"] <= 0:
+            raise ValidationError(
+                {"order": "Суммы транзакции должны быть положительными"}
+            )
+
     def serialize_order_data_for_transaction(self, order) -> dict | None:
         """Подготовить данные заказа для транзакции.
 
@@ -65,16 +108,24 @@ class OrderService:
         Returns:
             dict | None: Словарь с данными для создания транзакции или None
         """
+        # Валидация данных заказа
+        self.validate_transaction_data(order)
+
         transaction_type = order.status.group.get_transaction_type_by_status(
             order.status.code
         )
         if not transaction_type:
             return None
 
-        return {
+        data = {
             "balance": order.user.balance,
             "transaction_type": transaction_type,
             "amount_euro": order.amount_euro,
             "amount_rub": self.calculate_amount_rub(order),
             "comment": f"Оплата заказа №{order.internal_number} на сайте {order.site.name}",
         }
+
+        # Валидация сериализованных данных
+        self.validate_serialized_transaction_data(data)
+
+        return data

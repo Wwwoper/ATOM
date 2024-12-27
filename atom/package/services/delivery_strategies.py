@@ -1,9 +1,6 @@
 """Стратегия для работы со статусами доставки посылок."""
 
 from abc import ABC, abstractmethod
-from decimal import Decimal
-
-from balance.services.constants import TransactionTypeChoices
 from balance.services.transaction_service import TransactionProcessor
 from django.forms import ValidationError
 

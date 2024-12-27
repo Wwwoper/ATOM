@@ -43,7 +43,7 @@ class DeliveryStatusStrategyFactory:
     @classmethod
     def _get_strategies(cls):
         """Получить словарь стратегий с кодами статусов."""
-        PackageDelivery = apps.get_model("packages", "PackageDelivery")
+        PackageDelivery = apps.get_model("package", "PackageDelivery")
         status_codes = get_status_codes(PackageDelivery)
         from package.services.delivery_strategies import (
             CancelledPackageDeliveryStrategy,

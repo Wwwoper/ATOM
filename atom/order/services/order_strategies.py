@@ -1,6 +1,8 @@
 """Стратегии для работы с заказами."""
 
 from abc import ABC, abstractmethod
+from django.utils import timezone
+from django.core.exceptions import ValidationError
 
 from balance.services.transaction_service import TransactionProcessor
 from order.services.order_service import OrderService
@@ -34,7 +36,10 @@ class PaidOrderStrategy(OrderStrategy):
 
     def handle_order_status(self, order) -> None:
         """Обработать оплаченный заказ."""
-        print(f"Обработка оплаченного заказа {order.id}")
+        # Проверка на повторную оплату
+        if order.paid_at:
+            raise ValidationError({"order": "Заказ уже оплачен"})
+
         # Рассчитать расходы и прибыль
         self.order_service.calculate_expenses_and_profit(order)
 
@@ -42,7 +47,15 @@ class PaidOrderStrategy(OrderStrategy):
         order_data = self.order_service.serialize_order_data_for_transaction(order)
 
         # Обработать транзакцию
-        return self.transaction_service.execute_transaction(order_data)
+        transaction = self.transaction_service.execute_transaction(order_data)
+
+        # После успешной транзакции устанавливаем дату оплаты
+        if transaction:
+            order.paid_at = timezone.now()
+            # Используем update для обновления поля без вызова save()
+            type(order).objects.filter(pk=order.pk).update(paid_at=order.paid_at)
+
+        return transaction
 
 
 class RefundedOrderStrategy(OrderStrategy):

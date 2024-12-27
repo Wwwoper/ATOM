@@ -1,11 +1,10 @@
-"""Модели приложения packages."""
+"""Модели приложения package."""
 
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.forms import ValidationError
 from django.utils import timezone
 
 from .services.delivery_status_service import DeliveryStatusService
@@ -44,6 +43,11 @@ class Package(models.Model):
         verbose_name = "Посылка"
         verbose_name_plural = "Посылки"
         unique_together = ("user", "number")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "number"], name="unique_user_package_number"
+            )
+        ]
 
     def __str__(self):
         """Строковое представление модели."""
@@ -85,26 +89,22 @@ class Package(models.Model):
 
     def delete(self, *args, **kwargs) -> tuple[int, dict[str, int]]:
         """
-        Удаление посылки с проверкой статуса доставки.
+        Удаление посылки с проверкой наличия доставки.
 
         Raises:
-            ValidationError: Если посылка имеет оплаченную доставку
+            ValidationError: Если у посылки есть доставка
 
         Returns:
             tuple[int, dict[str, int]]: Результат удаления (количество удаленных объектов, детали)
         """
         try:
-            # Проверяем статус доставки
-            delivery = self.packagedelivery
-            if delivery.status.code == "paid":
+            if hasattr(self, "packagedelivery"):
                 raise ValidationError(
-                    {"package": "Невозможно удалить посылку с оплаченной доставкой"}
+                    {"package": "Невозможно удалить посылку с существующей доставкой"}
                 )
         except Package.packagedelivery.RelatedObjectDoesNotExist:
-            # Если у посылки нет доставки, можно удалять
             pass
 
-        # Если проверки пройдены, выполняем удаление
         return super().delete(*args, **kwargs)
 
 
@@ -130,6 +130,17 @@ class PackageOrder(models.Model):
     def __str__(self):
         """Строковое представление модели."""
         return f"Связь с заказом {self.order.id}"
+
+    def clean(self):
+        """Валидация модели."""
+        super().clean()
+        if self.order.status.code != "paid":
+            raise ValidationError("Можно добавлять только оплаченные заказы")
+
+    def save(self, *args, **kwargs):
+        """Сохранение с валидацией."""
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class TransportCompany(models.Model):
@@ -165,7 +176,7 @@ class PackageDelivery(models.Model):
     """Модель доставки посылки."""
 
     # FIXME Добавить выбор по умолчанию транспортной компании
-    # Сейчас ошибка при миграции для этого способа
+    # Сейчас оибка при миграции для этого способа
     # def get_default_transport_company():
     #     """Получение транспортной компании по умолчанию."""
     #     return TransportCompany.objects.filter(is_default=True).first()
@@ -187,7 +198,7 @@ class PackageDelivery(models.Model):
         related_name="packages_with_status",
         # FIXME Добавить выбор по умолчанию статуса Новая
     )
-    tracking_number = models.CharField("Трек номер для отслеживания", max_length=255)
+    tracking_number = models.CharField("Трек номер для отслеживания", max_length=100)
     weight = models.DecimalField(
         "Общий вес в кг",
         max_digits=10,
@@ -219,7 +230,7 @@ class PackageDelivery(models.Model):
 
         verbose_name = "Доставка посылки"
         verbose_name_plural = "Доставки посылок"
-        # Добавляем ограничение уникальности на уровне базы данных
+        # Добавляем ограничение уникальност�� на уровне базы данных
         constraints = [
             models.UniqueConstraint(fields=["package"], name="unique_package_delivery")
         ]
@@ -230,12 +241,47 @@ class PackageDelivery(models.Model):
 
     def clean(self):
         """Валидация модели."""
-        if not self.tracking_number:
-            raise ValidationError("Трек номер не может быть пустым")
-
-        if self.weight is not None and self.weight < 0:
-            raise ValidationError("Вес не может быть отрицательным")
         super().clean()
+
+        if not self.tracking_number:
+            raise ValidationError(
+                {"tracking_number": "Трек номер не может быть пустым"}
+            )
+
+        if self.weight and self.weight < Decimal("0"):
+            raise ValidationError({"weight": "Вес не может быть отрицательным"})
+
+        if self.shipping_cost_rub and self.shipping_cost_rub < Decimal("0"):
+            raise ValidationError(
+                {
+                    "shipping_cost_rub": "Стоимость отправки в рублях не может быть отрицательной"
+                }
+            )
+
+        if self.price_rub_for_kg and self.price_rub_for_kg < Decimal("0"):
+            raise ValidationError(
+                {"price_rub_for_kg": "Стоимость за кг не может быть отрицатель��ой"}
+            )
+
+        # Проверка изменения стоимости после оплаты
+        if self.pk:
+            old_delivery = PackageDelivery.objects.get(pk=self.pk)
+            if old_delivery.status.code == "paid":
+                if (
+                    self.shipping_cost_rub != old_delivery.shipping_cost_rub
+                    or self.price_rub_for_kg != old_delivery.price_rub_for_kg
+                ):
+                    raise ValidationError(
+                        {
+                            "shipping_cost_rub": "Невозможно изменить стоимость после оплаты",
+                            "price_rub_for_kg": "Невозможно изменить стоимость после оплаты",
+                        }
+                    )
+                # Проверка изменения статуса
+                if self.status != old_delivery.status:
+                    raise ValidationError(
+                        {"status": "Невозможно изменить статус оплаченной доставки"}
+                    )
 
         # Проверка уникальности доставки для посылки
         if not self.pk:  # Только для новых объектов
@@ -251,35 +297,44 @@ class PackageDelivery(models.Model):
         if self.tracking_number:
             self.tracking_number = self.tracking_number.strip()
 
-        if not self.tracking_number:
-            raise ValidationError(
-                {"tracking_number": "Трек номер не может быть пустым"}
-            )
-
-        if self.shipping_cost_rub and self.shipping_cost_rub < Decimal("0"):
-            raise ValidationError(
-                {
-                    "shipping_cost_rub": "Стоимость отправки в рублях не может быть отрицательной"
-                }
-            )
-
-        if self.price_rub_for_kg and self.price_rub_for_kg < Decimal("0"):
-            raise ValidationError(
-                {"price_rub_for_kg": "Стоимость за кг не может быть отрицательной"}
-            )
-
-        if self.weight and self.weight < Decimal("0"):
-            raise ValidationError({"weight": "Вес не может быть отрицательным"})
-
     def save(self, *args, **kwargs):
-        """Сохранение с обработкой изменения статуса."""
+        """
+        Сохранение модели с защитой от изменения стоимости после оплаты.
+        """
         skip_status_processing = kwargs.pop("skip_status_processing", False)
 
-        # Создаем сервис для обработки статусов
-        status_service = DeliveryStatusService()
+        if self.pk:  # Если объект уже существует
+            old_delivery = PackageDelivery.objects.get(pk=self.pk)
+            if old_delivery.status.code == "paid":
+                # Восстанавливаем значения стоимости и даты
+                self.shipping_cost_rub = old_delivery.shipping_cost_rub
+                self.price_rub_for_kg = old_delivery.price_rub_for_kg
+                self.paid_at = old_delivery.paid_at
+                # Сохраняем старый статус
+                self.status = old_delivery.status
 
-        # Обрабатываем изменение статуса
-        status_service.process_status_change(self, skip_status_processing)
+        # Валидация перед сохранением
+        self.full_clean()
 
-        # Сохраняем объект
+        # Обработка статуса если не пропускаем
+        if not skip_status_processing:
+            status_service = DeliveryStatusService()
+            status_service.process_status_change(self)
+
         super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs) -> tuple[int, dict[str, int]]:
+        """
+        Удаление доставки с проверкой статуса.
+
+        Raises:
+            ValidationError: Если доставка оплачена
+
+        Returns:
+            tuple[int, dict[str, int]]: Результат удаления (количество удаленных объектов, детали)
+        """
+        if self.status.code == "paid":
+            raise ValidationError(
+                {"delivery": "Невозможно удалить доставку с оплаченным статусом"}
+            )
+        return super().delete(*args, **kwargs)

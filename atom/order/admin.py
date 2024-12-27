@@ -52,6 +52,7 @@ class SiteAdmin(admin.ModelAdmin):
 class OrderAdmin(admin.ModelAdmin):
     """Административный интерфейс для модели Order."""
 
+    autocomplete_fields = ["user"]
     list_display = (
         "internal_number",
         "external_number",
@@ -114,19 +115,19 @@ class OrderAdmin(admin.ModelAdmin):
 
     def display_amount_euro(self, obj):
         """Отображение суммы в евро."""
-        return format_html("€{:,.2f}", obj.amount_euro)
+        return format_html("€{}", "{:,.2f}".format(obj.amount_euro))
 
     display_amount_euro.short_description = "Сумма (EUR)"
 
     def display_amount_rub(self, obj):
         """Отображение суммы в рублях."""
-        return format_html("₽{:,.2f}", obj.amount_rub)
+        return format_html("₽{}", "{:,.2f}".format(obj.amount_rub))
 
     display_amount_rub.short_description = "Сумма (RUB)"
 
     def display_profit(self, obj):
         """Отображение прибыли."""
-        return format_html("₽{:,.2f}", obj.profit)
+        return format_html("₽{}", "{:,.2f}".format(obj.profit))
 
     display_profit.short_description = "Прибыль"
 
