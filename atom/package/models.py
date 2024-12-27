@@ -171,6 +171,31 @@ class TransportCompany(models.Model):
         """Строковое представление модели."""
         return self.name
 
+    def clean(self):
+        """Валидация модели."""
+        super().clean()
+        if not self.name:
+            raise ValidationError({"name": "Название компании обязательно"})
+
+    def save(self, *args, **kwargs):
+        """Сохранение с валидацией."""
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """
+        Удаление транспортной компании с проверкой на наличие связанных доставок.
+
+        Raises:
+            ValidationError: Если есть связанные доставки
+        """
+        if self.deliveries.exists():
+            raise ValidationError(
+                "Невозможно удалить транспортную компанию, пока с ней связаны доставки. "
+                f"Количество связанных доставок: {self.deliveries.count()}"
+            )
+        return super().delete(*args, **kwargs)
+
 
 class PackageDelivery(models.Model):
     """Модель доставки посылки."""
@@ -188,6 +213,7 @@ class PackageDelivery(models.Model):
         TransportCompany,
         on_delete=models.CASCADE,
         verbose_name="Транспортная компания",
+        related_name="deliveries",
         # default=get_default_transport_company,
     )
     status = models.ForeignKey(
@@ -230,7 +256,7 @@ class PackageDelivery(models.Model):
 
         verbose_name = "Доставка посылки"
         verbose_name_plural = "Доставки посылок"
-        # Добавляем ограничение уникальност�� на уровне базы данных
+        # Добавляем ограничение уникальности на уровне базы данных
         constraints = [
             models.UniqueConstraint(fields=["package"], name="unique_package_delivery")
         ]
@@ -260,7 +286,7 @@ class PackageDelivery(models.Model):
 
         if self.price_rub_for_kg and self.price_rub_for_kg < Decimal("0"):
             raise ValidationError(
-                {"price_rub_for_kg": "Стоимость за кг не может быть отрицатель��ой"}
+                {"price_rub_for_kg": "С��оимость за кг не может быть отрицательной"}
             )
 
         # Проверка изменения стоимости после оплаты

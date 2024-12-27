@@ -172,9 +172,13 @@ class TransportCompanyAdmin(admin.ModelAdmin):
 
     def display_deliveries_count(self, obj):
         """Отображение количества доставок."""
-        return obj.packagedelivery_set.count()
+        return obj.deliveries.count()
 
     display_deliveries_count.short_description = "Кол-во доставок"
+
+    def get_queryset(self, request):
+        """Оптимизация запросов для админки."""
+        return super().get_queryset(request).prefetch_related("deliveries")
 
 
 @admin.register(PackageOrder)

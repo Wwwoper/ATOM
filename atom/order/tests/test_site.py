@@ -2,7 +2,6 @@ import pytest
 from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db.utils import IntegrityError
-from django.contrib.auth import get_user_model
 from django.db import transaction
 from user.services import UserService
 

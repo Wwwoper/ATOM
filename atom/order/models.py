@@ -217,5 +217,5 @@ class Order(models.Model):
             ValidationError: Если заказ оплачен
         """
         if self.status.code == "paid":
-            raise ValidationError("Невозможно удалить о��лаченный заказ")
+            raise ValidationError("Невозможно удалить оплаченный заказ")
         return super().delete(*args, **kwargs)
