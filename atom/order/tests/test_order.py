@@ -1,11 +1,15 @@
+"""Тесты модульного тестирования для модели Order.
+
+Тесты проверяют корректность создания и удаления заказов, а также
+корректность сохранения их значений.
+"""
+
 import pytest
 from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db.utils import IntegrityError
 from django.utils import timezone
-from django.contrib.auth import get_user_model
 from unittest.mock import patch
-from unittest.mock import Mock
 from django.db import transaction
 
 from balance.services.constants import TransactionTypeChoices

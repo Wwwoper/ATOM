@@ -1,3 +1,9 @@
+"""Тесты модульного тестирования для модели Site.
+
+Тесты проверяют корректность создания и удаления сайтов, а также
+корректность сохранения их значений.
+"""
+
 import pytest
 from decimal import Decimal
 from django.core.exceptions import ValidationError

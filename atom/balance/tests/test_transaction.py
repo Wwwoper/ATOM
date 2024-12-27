@@ -1,3 +1,9 @@
+"""Тесты модульные для модели Transaction.
+
+Тесты проверяют корректность создания и удаления транзакций, а также
+корректность сохранения их типов.
+"""
+
 import pytest
 from decimal import Decimal
 from django.db import transaction as db_transaction

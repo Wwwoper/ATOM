@@ -1,3 +1,5 @@
+"""Административный интерфейс для приложения orders."""
+
 from django.contrib import admin
 from django.core.exceptions import PermissionDenied
 from django.utils.html import format_html

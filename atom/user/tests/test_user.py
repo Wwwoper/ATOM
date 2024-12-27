@@ -1,7 +1,12 @@
+"""Тесты для модели User.
+
+Этот модуль содержит тесты для проверки корректности работы модели User,
+включая создание пользователей и проверку их данных.
+"""
+
 import pytest
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group, Permission
 from django.utils import timezone
 from django.db import IntegrityError
 

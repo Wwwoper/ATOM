@@ -1,3 +1,9 @@
+"""Тесты модульного тестирования для модели BalanceHistoryRecord.
+
+Тесты проверяют корректность создания и удаления записей истории, а также
+корректность сохранения их значений.
+"""
+
 import pytest
 from decimal import Decimal
 from django.contrib.auth import get_user_model

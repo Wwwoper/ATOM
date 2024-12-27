@@ -108,6 +108,7 @@ class Status(models.Model):
         return f"{self.name} ({self.group.name})"
 
     def save(self, *args, **kwargs):
+        """Сохранение статуса."""
         if self.is_default:
             # Используем транзакцию для атомарного обновления
             with transaction.atomic():
