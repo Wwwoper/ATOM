@@ -127,8 +127,8 @@ jobs:
       id: date
       run: echo "date=$(date +'%d.%m.%Y')" >> $GITHUB_OUTPUT
     
-    - name: Get latest tag
-      id: latest_tag
+    - name: Generate new version
+      id: version
       run: |
         # Получаем список всех тегов
         git fetch --tags
@@ -159,17 +159,18 @@ jobs:
         fi
         
         echo "Generated new version: $new_version"
-        echo "new_version=$new_version" >> $GITHUB_OUTPUT
+        echo "NEW_VERSION=${new_version}" >> $GITHUB_ENV
+        echo "new_version=${new_version}" >> $GITHUB_OUTPUT
     
     - name: Create Release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ steps.version.outputs.new_version }}
-        release_name: Релиз ${{ steps.version.outputs.new_version }} от ${{ steps.date.outputs.date }}
+        tag_name: ${{ env.NEW_VERSION }}
+        release_name: Релиз ${{ env.NEW_VERSION }} от ${{ steps.date.outputs.date }}
         body: |
-          # Релиз ${{ steps.version.outputs.new_version }}
+          # Релиз ${{ env.NEW_VERSION }}
           
           **Дата выпуска:** ${{ steps.date.outputs.date }}
           
