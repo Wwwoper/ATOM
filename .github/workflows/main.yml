@@ -2,9 +2,9 @@ name: Django CI/CD
 
 on:
   pull_request:
-    branches: [ main, production ]
+    branches: [ main]
   push:
-    branches: [ main, production ]
+    branches: [ main ]
 
 jobs:
   test:
@@ -41,47 +41,48 @@ jobs:
         pip install -r requirements/prod.txt
         pip install pytest pytest-django
         
-    - name: Setup CI environment
-      run: |
-        echo "DEBUG=True
-        SECRET_KEY=django-insecure-ci-key-123456789
-        ALLOWED_HOSTS=localhost,127.0.0.1
-        CSRF_TRUSTED_ORIGINS=http://localhost:8081,https://localhost:8081
-
-        DB_ENGINE=django.db.backends.postgresql
-        DB_NAME=atom_db
-        DB_USER=atom_user
-        DB_PASSWORD=87408740
-        DB_HOST=localhost
-        DB_PORT=5432
-
-        STATIC_URL=/static/
-        MEDIA_URL=/media/
-        STATIC_ROOT=/app/atom/static
-        MEDIA_ROOT=/app/atom/media
-
-        CSRF_COOKIE_SECURE=False
-        SESSION_COOKIE_SECURE=False
-        SECURE_SSL_REDIRECT=False
-        SECURE_HSTS_SECONDS=0
-        SECURE_HSTS_INCLUDE_SUBDOMAINS=False
-        SECURE_HSTS_PRELOAD=False
-
-        API_VERSION=v1
-
-        CSRF_USE_SESSIONS=False
-        CSRF_COOKIE_HTTPONLY=False" > atom/.env.ci
-        
     - name: Run Tests
-      env:
-        DJANGO_ENV: ci
       run: |
         cd atom
         pytest -v
+      env:
+        # Основные настройки Django
+        DJANGO_ENV: "ci"
+        DEBUG: "True"
+        SECRET_KEY: "django-insecure-ci-key-123456789"
+        ALLOWED_HOSTS: "localhost,127.0.0.1"
+        
+        # База данных
+        DB_ENGINE: "django.db.backends.postgresql"
+        DB_NAME: "atom_db"
+        DB_USER: "atom_user"
+        DB_PASSWORD: "87408740"
+        DB_HOST: "localhost"
+        DB_PORT: "5432"
+        
+        # Статические файлы
+        STATIC_URL: "/static/"
+        MEDIA_URL: "/media/"
+        STATIC_ROOT: "/app/atom/static"
+        MEDIA_ROOT: "/app/atom/media"
+        
+        # CSRF и безопасность
+        CSRF_TRUSTED_ORIGINS: "http://localhost:8081,https://localhost:8081"
+        CSRF_USE_SESSIONS: "False"
+        CSRF_COOKIE_HTTPONLY: "False"
+        CSRF_COOKIE_SECURE: "False"
+        
+        # Сессии и безопасность
+        SESSION_COOKIE_SECURE: "False"
+        SECURE_SSL_REDIRECT: "False"
+        SECURE_HSTS_SECONDS: "0"
+        SECURE_HSTS_INCLUDE_SUBDOMAINS: "False"
+        SECURE_HSTS_PRELOAD: "False"
+
 
   create_release:
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/production'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     
     steps:
@@ -123,6 +124,6 @@ jobs:
           ${{ github.event.head_commit.message }}
           
           ---
-          Релиз создан автоматически при слиянии в ветку main.
+          Релиз создан автоматически при слиянии в ветку production.
         draft: false
         prerelease: false 
