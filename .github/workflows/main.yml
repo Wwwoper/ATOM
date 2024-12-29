@@ -2,7 +2,7 @@ name: Django CI/CD
 
 on:
   pull_request:
-    branches: [ main]
+    branches: [ main ]
   push:
     branches: [ main ]
 
@@ -39,12 +39,29 @@ jobs:
         pip install -r requirements/base.txt
         pip install -r requirements/dev.txt
         pip install -r requirements/prod.txt
-        pip install pytest pytest-django
+        pip install pytest pytest-django pytest-cov
+        
+    - name: Run Migrations
+      run: |
+        cd atom
+        python manage.py makemigrations
+        python manage.py migrate
+      env:
+        DJANGO_ENV: "ci"
+        DEBUG: "True"
+        SECRET_KEY: "django-insecure-ci-key-123456789"
+        ALLOWED_HOSTS: "localhost,127.0.0.1"
+        DB_ENGINE: "django.db.backends.postgresql"
+        DB_NAME: "atom_db"
+        DB_USER: "atom_user"
+        DB_PASSWORD: "87408740"
+        DB_HOST: "localhost"
+        DB_PORT: "5432"
         
     - name: Run Tests
       run: |
         cd atom
-        PYTHONPATH=$PYTHONPATH:$(pwd) pytest
+        pytest
       env:
         # Основные настройки Django
         DJANGO_ENV: "ci"
