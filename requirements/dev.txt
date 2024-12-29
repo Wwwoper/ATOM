@@ -12,10 +12,6 @@ pyflakes==3.2.0
 mccabe==0.7.0
 
 
-# Отладка
-django-debug-toolbar==4.4.6
-setuptools==75.4.0
-
 # Тесты
 pytest==8.3.4
 pytest-django==4.9.0
