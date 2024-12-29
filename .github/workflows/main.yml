@@ -57,6 +57,7 @@ jobs:
         DB_PASSWORD: "87408740"
         DB_HOST: "localhost"
         DB_PORT: "5432"
+        CSRF_TRUSTED_ORIGINS: "http://localhost:8081,https://localhost:8081"
         
     - name: Run Tests
       run: |
@@ -95,6 +96,13 @@ jobs:
         SECURE_HSTS_SECONDS: "0"
         SECURE_HSTS_INCLUDE_SUBDOMAINS: "False"
         SECURE_HSTS_PRELOAD: "False"
+        
+        # API и локализация
+        API_VERSION: "v1"
+        LANGUAGE_CODE: "ru"
+        TIME_ZONE: "Europe/Moscow"
+        USE_I18N: "True"
+        USE_TZ: "True"
 
 
   create_release:
