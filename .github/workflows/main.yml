@@ -9,8 +9,8 @@ permissions:
 on:
   pull_request:
     branches: [ main ]
-  push:
-    branches: [ main ]
+  # push:
+  #   branches: [ main ]
 
 jobs:
   test:
@@ -130,16 +130,29 @@ jobs:
     - name: Get latest tag
       id: latest_tag
       run: |
+        # Получаем последний тег или устанавливаем v0.0.0 если тегов нет
         latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
         echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
     
     - name: Generate new version
       id: version
       run: |
+        # Получаем текущую версию без 'v' префикса
         latest_version=${latest_tag#v}
-        IFS='.' read -r major minor patch <<< "$latest_version"
-        new_version="v$major.$minor.$((patch + 1))"
+        
+        # Проверяем формат версии
+        if [[ $latest_version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          # Разбиваем версию на компоненты
+          IFS='.' read -r major minor patch <<< "$latest_version"
+          # Увеличиваем patch версию
+          new_version="v${major}.${minor}.$((patch + 1))"
+        else
+          # Если формат неверный, начинаем с v0.0.1
+          new_version="v0.0.1"
+        fi
+        
         echo "new_version=$new_version" >> $GITHUB_OUTPUT
+        echo "Generated new version: $new_version"
     
     - name: Create Release
       uses: actions/create-release@v1
@@ -157,6 +170,6 @@ jobs:
           ${{ github.event.head_commit.message }}
           
           ---
-          Релиз создан автоматически при слиянии в ветку production.
+          Релиз создан автоматически при слиянии в ветку main.
         draft: false
         prerelease: false 
