@@ -74,6 +74,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -144,8 +145,8 @@ USE_TZ = True
 STATIC_URL = os.getenv("STATIC_URL", "static/")
 MEDIA_URL = os.getenv("MEDIA_URL", "media/")
 
-STATIC_ROOT = BASE_DIR / "static"
-MEDIA_ROOT = BASE_DIR / "media"
+STATIC_ROOT = os.getenv("STATIC_ROOT", BASE_DIR / "static")
+MEDIA_ROOT = os.getenv("MEDIA_ROOT", BASE_DIR / "media")
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -153,13 +154,29 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # API settings
 API_VERSION = os.getenv("API_VERSION", "v1")
 
-# Security settings (только для продакшена)
+# Security settings
 if not DEBUG:
-    CSRF_COOKIE_SECURE = os.getenv("CSRF_COOKIE_SECURE", "True") == "True"
-    SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "True") == "True"
+    # Настройки безопасности только для продакшена
     SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "True") == "True"
     SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "31536000"))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = (
         os.getenv("SECURE_HSTS_INCLUDE_SUBDOMAINS", "True") == "True"
     )
     SECURE_HSTS_PRELOAD = os.getenv("SECURE_HSTS_PRELOAD", "True") == "True"
+
+    # Настройки сессий и CSRF для продакшена
+    SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "True") == "True"
+    CSRF_COOKIE_SECURE = os.getenv("CSRF_COOKIE_SECURE", "True") == "True"
+else:
+    # Настройки для разработки и тестов
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+
+# Общие настройки CSRF (для всех окружений)
+CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
+CSRF_USE_SESSIONS = os.getenv("CSRF_USE_SESSIONS", "False") == "True"
+CSRF_COOKIE_HTTPONLY = os.getenv("CSRF_COOKIE_HTTPONLY", "False") == "True"
+
+# Настройки для whitenoise
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"

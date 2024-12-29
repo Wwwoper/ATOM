@@ -1,7 +1,12 @@
-"""Структура конфигурации статусов.
+"""
+Структура конфигурации статусов.
 
+Этот модуль содержит конфигурацию начальных данных для статусов различных сущностей
+(заказы, доставки). Определяет структуру статусов, правила переходов и типы транзакций.
+
+Формат конфигурации:
 {
-    "group_code": {                    # Код группы статусов (например "order_status")
+    "group_code": {                    # Код группы статусов (например "ORDER_STATUS_CONFIG")
         "name": str,                   # Название группы статусов
         "model": str,                  # Путь к модели в формате "app.Model"
         "allowed_status_transitions": {# Словарь разрешенных переходов
@@ -27,12 +32,41 @@
         ]
     }
 }
+
+Примеры конфигурации:
+    ORDER_STATUS_CONFIG = {
+        "ORDER_STATUS_CONFIG": {
+            "name": "Статусы заказа",
+            "model": "order.Order",
+            "allowed_status_transitions": {
+                "new": ["paid"],
+                "paid": ["refunded"]
+            },
+            "status": [
+                {
+                    "code": "new",
+                    "name": "Новый",
+                    "is_default": True,
+                    "order": 10
+                },
+                ...
+            ]
+        }
+    }
+
+Примечания:
+    - Каждая группа статусов должна иметь уникальный код
+    - Все статусы должны иметь уникальные коды внутри группы
+    - Обязательно должен быть указан статус по умолчанию
+    - Порядок статусов влияет на их отображение в интерфейсе
+    - Правила переходов определяют возможные изменения статусов
+    - Типы транзакций связывают статусы с финансовыми операциями
 """
 
 from balance.services.constants import TransactionTypeChoices
 
-ORDER_status = {
-    "order_status": {
+ORDER_STATUS_CONFIG = {
+    "ORDER_STATUS_CONFIG": {
         "name": "Статусы заказа",
         "model": "order.Order",
         "allowed_status_transitions": {
@@ -67,8 +101,9 @@ ORDER_status = {
         ],
     }
 }
+
 DELIVERY_STATUS_CONFIG = {
-    "delivery_status": {
+    "DELIVERY_STATUS_CONFIG": {
         "name": "Статусы доставки",
         "model": "package.PackageDelivery",
         "allowed_status_transitions": {

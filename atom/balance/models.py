@@ -2,6 +2,7 @@ from decimal import ROUND_HALF_UP, Decimal, DivisionByZero, InvalidOperation
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
+from django.db.models.deletion import ProtectedError
 from django.db import models
 from django.utils import timezone
 
@@ -114,6 +115,15 @@ class Balance(models.Model):
         except (DivisionByZero, InvalidOperation):
             return Decimal("0.00")
 
+    def clean(self):
+        """Валидация модели."""
+        if self.pk:
+            old_balance = Balance.objects.get(pk=self.pk)
+            if self.user != old_balance.user:
+                raise ValidationError(
+                    {"user": "Невозможно изменить пользователя после создания баланса"}
+                )
+
 
 class Transaction(models.Model):
     """Модель для хранения информации о транзакциях пользователей."""
@@ -121,8 +131,8 @@ class Transaction(models.Model):
     balance = models.ForeignKey(
         Balance,
         on_delete=models.PROTECT,
-        verbose_name="Баланс счета",
         related_name="transactions",
+        verbose_name="Баланс",
     )
     transaction_date = models.DateTimeField(
         default=timezone.now, verbose_name="Дата транзакции"
@@ -173,6 +183,17 @@ class Transaction(models.Model):
     def __str__(self):
         """Возвращает строковое представление транзакции."""
         return f"{self.get_transaction_type_display()} от {self.transaction_date}"
+
+    def delete(self, *args, **kwargs):
+        """
+        Запрещает удаление транзакции.
+
+        Raises:
+            ProtectedError: При любой попытке удаления транзакции
+        """
+        raise ProtectedError(
+            "Cannot delete transaction because it is protected", [self]
+        )
 
 
 class BalanceHistoryRecord(models.Model):

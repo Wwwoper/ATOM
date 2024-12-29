@@ -1,7 +1,8 @@
 """Модели приложения status."""
 
 from django.contrib.contenttypes.models import ContentType
-from django.db import models
+from django.db import models, transaction
+from django.core.exceptions import ValidationError
 
 
 class StatusGroup(models.Model):
@@ -62,11 +63,21 @@ class StatusGroup(models.Model):
 
         verbose_name = "Группа статусов"
         verbose_name_plural = "Группы статусов"
-        unique_together = ["code", "content_type"]
+        unique_together = [("code", "content_type")]
 
     def __str__(self):
         """Строковое представление модели."""
         return self.name
+
+    def clean(self):
+        """Проверяет уникальность кода группы статусов."""
+        qs = StatusGroup.objects.filter(code=self.code)
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        if qs.exists():
+            raise ValidationError(
+                {"code": "Группа статусов с таким кодом уже существует"}
+            )
 
 
 class Status(models.Model):
@@ -94,4 +105,15 @@ class Status(models.Model):
 
     def __str__(self):
         """Строковое представление модели."""
-        return self.name
+        return f"{self.name} ({self.group.name})"
+
+    def save(self, *args, **kwargs):
+        """Сохранение статуса."""
+        if self.is_default:
+            # Используем транзакцию для атомарного обновления
+            with transaction.atomic():
+                # Снимаем флаг у других статусов в этой группе
+                Status.objects.filter(group=self.group, is_default=True).exclude(
+                    pk=self.pk
+                ).update(is_default=False)
+        super().save(*args, **kwargs)

@@ -1,4 +1,44 @@
-"""Сервис для управления статусами доставки."""
+"""
+Сервис для управления статусами доставки.
+
+Этот модуль предоставляет функциональность для управления жизненным циклом доставок
+через изменение их статусов. Реализует бизнес-логику переходов между статусами
+и обеспечивает валидацию этих переходов.
+
+Основные компоненты:
+    - DeliveryStatusService: Основной класс для работы со статусами доставок
+    - process_status_change: Обработка изменения статуса доставки
+    - _check_status_change: Проверка возможности изменения статуса
+    - _set_initial_status: Установка начального статуса для новой доставки
+    - _validate_status_change: Валидация возможности перехода между статусами
+
+Процесс изменения статуса:
+    1. Проверка текущего состояния доставки
+    2. Валидация возможности перехода в новый статус
+    3. Применение изменений с использованием соответствующей стратегии
+    4. Обновление связанных данных доставки
+
+Правила переходов:
+    - Новая доставка получает статус по умолчанию
+    - Переходы между статусами строго регламентированы
+    - Некоторые переходы могут требовать дополнительных проверок
+    - Запрещены циклические переходы между статусами
+
+Примеры использования:
+    service = DeliveryStatusService()
+    
+    # Обработка изменения статуса
+    service.process_status_change(delivery)
+    
+    # Установка начального статуса
+    service._set_initial_status(new_delivery)
+
+Примечания:
+    - Все изменения статусов логируются
+    - Недопустимые переходы вызывают ValidationError
+    - Сервис интегрирован с системой стратегий обработки доставок
+    - Поддерживается асинхронная обработка изменений статусов
+"""
 
 from django.forms import ValidationError
 from status.models import Status
@@ -63,7 +103,7 @@ class DeliveryStatusService:
     def _set_initial_status(self, delivery: "Delivery") -> bool:
         """Установка начального статуса для новой доставки."""
         default_status_code = get_default_status(
-            delivery.__class__, group_code="delivery_status"
+            delivery.__class__, group_code="DELIVERY_STATUS_CONFIG"
         )
         if not default_status_code:
             raise ValidationError(
@@ -71,7 +111,7 @@ class DeliveryStatusService:
             )
 
         delivery.status = Status.objects.get(
-            code=default_status_code, group__code="delivery_status"
+            code=default_status_code, group__code="DELIVERY_STATUS_CONFIG"
         )
         return True
 

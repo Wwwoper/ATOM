@@ -1,6 +1,52 @@
-"""Стратегии для работы со статусами."""
+"""
+Фабрики для создания стратегий обработки статусов.
+
+Этот модуль реализует паттерн "Фабричный метод" для создания стратегий обработки
+различных типов статусов (заказы, доставки). Обеспечивает выбор правильной стратегии
+в зависимости от текущего статуса объекта.
+
+Основные компоненты:
+    - OrderStatusStrategyFactory: Фабрика стратегий для заказов
+    - DeliveryStatusStrategyFactory: Фабрика стратегий для доставок
+    - get_strategy: Метод получения конкретной стратегии
+    - _get_strategies: Метод получения словаря доступных стратегий
+
+Процесс создания стратегии:
+    1. Определение типа объекта (заказ/доставка)
+    2. Получение кода текущего статуса
+    3. Поиск соответствующей стратегии в словаре стратегий
+    4. Создание и возврат экземпляра стратегии
+
+Доступные стратегии:
+    Для заказов:
+        - new: NewOrderStrategy
+        - paid: PaidOrderStrategy
+        - refunded: RefundedOrderStrategy
+
+    Для доставок:
+        - new: NewPackageDeliveryStrategy
+        - paid: PaidPackageDeliveryStrategy
+        - cancelled: CancelledPackageDeliveryStrategy
+        - reexport: ReexportPackageDeliveryStrategy
+
+Примеры использования:
+    # Получение стратегии для заказа
+    strategy = OrderStatusStrategyFactory.get_strategy(order.status)
+    strategy.handle_ORDER_STATUS_CONFIG(order)
+
+    # Получение стратегии для доставки
+    strategy = DeliveryStatusStrategyFactory.get_strategy(delivery.status)
+    strategy.process_delivery(delivery)
+
+Примечания:
+    - Каждая фабрика работает только со своим типом объектов
+    - При отсутствии стратегии вызывается ValidationError
+    - Стратегии создаются только при необходимости
+    - Поддерживается добавление новых стратегий
+"""
 
 from django.apps import apps
+from django.core.exceptions import ValidationError
 
 from .constants import get_status_codes
 
@@ -10,8 +56,13 @@ class OrderStatusStrategyFactory:
 
     @classmethod
     def _get_strategies(cls):
-        """Получить словарь стратегий с кодами статусов."""
-        Order = apps.get_model("orders", "Order")
+        """
+        Получить словарь стратегий с кодами статусов.
+
+        Returns:
+            dict: Словарь {код_статуса: класс_стратегии}
+        """
+        Order = apps.get_model("order", "Order")
         status_codes = get_status_codes(Order)
         from order.services.order_strategies import (
             NewOrderStrategy,
@@ -27,11 +78,22 @@ class OrderStatusStrategyFactory:
 
     @classmethod
     def get_strategy(cls, status):
-        """Получить стратегию по статусу заказа."""
+        """
+        Получить стратегию по статусу.
+
+        Args:
+            status: Статус или его код
+
+        Returns:
+            BaseStrategy: Экземпляр стратегии для обработки статуса
+
+        Raises:
+            ValidationError: Если стратегия для статуса не найдена
+        """
         status_code = status.code if hasattr(status, "code") else status
         strategy_class = cls._get_strategies().get(status_code)
         if not strategy_class:
-            raise ValueError(
+            raise ValidationError(
                 f"Стратегия для статуса {status} (код: {status_code}) не найдена"
             )
         return strategy_class()
@@ -42,8 +104,13 @@ class DeliveryStatusStrategyFactory:
 
     @classmethod
     def _get_strategies(cls):
-        """Получить словарь стратегий с кодами статусов."""
-        PackageDelivery = apps.get_model("packages", "PackageDelivery")
+        """
+        Получить словарь стратегий с кодами статусов.
+
+        Returns:
+            dict: Словарь {код_статуса: класс_стратегии}
+        """
+        PackageDelivery = apps.get_model("package", "PackageDelivery")
         status_codes = get_status_codes(PackageDelivery)
         from package.services.delivery_strategies import (
             CancelledPackageDeliveryStrategy,
@@ -61,11 +128,22 @@ class DeliveryStatusStrategyFactory:
 
     @classmethod
     def get_strategy(cls, status):
-        """Получить стратегию по статусу доставки."""
+        """
+        Получить стратегию по статусу.
+
+        Args:
+            status: Статус или его код
+
+        Returns:
+            BaseStrategy: Экземпляр стратегии для обработки статуса
+
+        Raises:
+            ValidationError: Если стратегия для статуса не найдена
+        """
         status_code = status.code if hasattr(status, "code") else status
         strategy_class = cls._get_strategies().get(status_code)
         if not strategy_class:
-            raise ValueError(
+            raise ValidationError(
                 f"Стратегия для статуса {status} (код: {status_code}) не найдена"
             )
         return strategy_class()

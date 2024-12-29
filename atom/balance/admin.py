@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from django.core.exceptions import PermissionDenied
 
 from .models import Balance, BalanceHistoryRecord, Transaction
 
@@ -40,6 +41,14 @@ class BalanceAdmin(admin.ModelAdmin):
         """Запрет на удаление баланса."""
         return False
 
+    def delete_model(self, request, obj):
+        """Запрет на удаление отдельного баланса."""
+        raise PermissionDenied("Удаление баланса запрещено")
+
+    def delete_queryset(self, request, queryset):
+        """Запрет на массовое удаление балансов."""
+        raise PermissionDenied("Массовое удаление балансов запрещено")
+
 
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
@@ -72,6 +81,18 @@ class TransactionAdmin(admin.ModelAdmin):
         return format_html("₽{}", "{:.2f}".format(obj.amount_rub))
 
     display_amount_rub.short_description = "Сумма в рублях"
+
+    def has_delete_permission(self, request, obj=None):
+        """Запрещает удаление транзакций через админку."""
+        return False
+
+    def delete_model(self, request, obj):
+        """Запрещает удаление отдельной транзакции."""
+        raise PermissionDenied("Удаление транзакций запрещено")
+
+    def delete_queryset(self, request, queryset):
+        """Запрещает массовое удаление транзакций."""
+        raise PermissionDenied("Массовое удаление транзакций запрещено")
 
 
 @admin.register(BalanceHistoryRecord)

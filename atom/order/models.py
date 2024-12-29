@@ -65,6 +65,20 @@ class Site(models.Model):
         """Строковое представление модели."""
         return self.name
 
+    def delete(self, *args, **kwargs):
+        """
+        Удаление сайта с проверкой на наличие связанных заказов.
+
+        Raises:
+            ValidationError: Если есть связанные заказы
+        """
+        if self.orders.exists():
+            raise ValidationError(
+                "Невозможно удалить сайт, пока с ним связаны заказы. "
+                f"Количество связанных заказов: {self.orders.count()}"
+            )
+        return super().delete(*args, **kwargs)
+
 
 class Order(models.Model):
     """Модель заказа."""
@@ -76,13 +90,13 @@ class Order(models.Model):
         related_name="orders",
     )
     site = models.ForeignKey(
-        Site, on_delete=models.CASCADE, related_name="orders", verbose_name="Сайт"
+        Site, on_delete=models.PROTECT, related_name="orders", verbose_name="Сайт"
     )
     status = models.ForeignKey(
         "status.Status",
         on_delete=models.PROTECT,
         verbose_name="Статус заказа",
-        limit_choices_to={"group__code": "order_status"},
+        limit_choices_to={"group__code": "ORDER_STATUS_CONFIG"},
         related_name="orders_with_status",
     )
     internal_number = models.CharField(
@@ -147,6 +161,42 @@ class Order(models.Model):
         if self.amount_rub <= 0:
             raise ValidationError({"amount_rub": "Цена в рублях должна быть больше 0"})
 
+        # Проверка изменения пользователя
+        if self.pk:
+            old_order = Order.objects.get(pk=self.pk)
+            if self.user != old_order.user:
+                raise ValidationError(
+                    {"user": "Невозможно изменить пользователя после создания заказа"}
+                )
+
+            # Проверка изменения сумм и статусов после оплаты
+            if old_order.status.code == "paid":
+                # Проверка изменения сумм
+                if (
+                    self.amount_euro != old_order.amount_euro
+                    or self.amount_rub != old_order.amount_rub
+                ):
+                    raise ValidationError(
+                        {
+                            "amount_euro": "Невозможно изменить сумму после оплаты",
+                            "amount_rub": "Невозможно изменить сумму после оплаты",
+                        }
+                    )
+
+                # Проверка допустимости перехода статуса
+                if self.status != old_order.status:
+                    allowed_transitions = (
+                        old_order.status.group.allowed_status_transitions.get(
+                            old_order.status.code, []
+                        )
+                    )
+                    if self.status.code not in allowed_transitions:
+                        raise ValidationError(
+                            {
+                                "status": f"Недопустимый переход из статуса '{old_order.status.name}' в '{self.status.name}'"
+                            }
+                        )
+
     def save(self, *args, **kwargs):
         """Сохранение модели."""
         skip_status_processing = kwargs.pop("skip_status_processing", False)
@@ -158,3 +208,14 @@ class Order(models.Model):
 
         self.clean()
         super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """
+        Удаление заказа с проверкой статуса.
+
+        Raises:
+            ValidationError: Если заказ оплачен
+        """
+        if self.status.code == "paid":
+            raise ValidationError("Невозможно удалить оплаченный заказ")
+        return super().delete(*args, **kwargs)

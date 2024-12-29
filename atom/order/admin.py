@@ -1,5 +1,7 @@
+"""Административный интерфейс для приложения orders."""
+
 from django.contrib import admin
-from django.db.models import Count, Sum
+from django.core.exceptions import PermissionDenied
 from django.utils.html import format_html
 
 from .models import Order, Site
@@ -43,15 +45,20 @@ class SiteAdmin(admin.ModelAdmin):
     def display_total_profit(self, obj):
         """Отображение общей прибыли."""
         total_profit = getattr(obj, "total_profit", 0)
-        return format_html("₽{}", "{:.2f}".format(float(total_profit)))
+        return format_html("₽{}", f"{float(total_profit):.2f}")
 
     display_total_profit.short_description = "Общая прибыль"
+
+    def delete_queryset(self, request, queryset):
+        """Запрет на массовое удаление сайтов."""
+        raise PermissionDenied("Массовое удаление сайтов запрещено")
 
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     """Административный интерфейс для модели Order."""
 
+    autocomplete_fields = ["user"]
     list_display = (
         "internal_number",
         "external_number",
@@ -114,19 +121,19 @@ class OrderAdmin(admin.ModelAdmin):
 
     def display_amount_euro(self, obj):
         """Отображение суммы в евро."""
-        return format_html("€{:,.2f}", obj.amount_euro)
+        return format_html("€{}", f"{obj.amount_euro:,.2f}")
 
     display_amount_euro.short_description = "Сумма (EUR)"
 
     def display_amount_rub(self, obj):
         """Отображение суммы в рублях."""
-        return format_html("₽{:,.2f}", obj.amount_rub)
+        return format_html("₽{}", f"{obj.amount_rub:,.2f}")
 
     display_amount_rub.short_description = "Сумма (RUB)"
 
     def display_profit(self, obj):
         """Отображение прибыли."""
-        return format_html("₽{:,.2f}", obj.profit)
+        return format_html("₽{}", f"{obj.profit:,.2f}")
 
     display_profit.short_description = "Прибыль"
 
