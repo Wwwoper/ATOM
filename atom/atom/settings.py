@@ -10,26 +10,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Флаг для отслеживания первой загрузки
 if not os.environ.get("SETTINGS_LOADED"):
-    # Проверяем CI окружение
-    if os.getenv("DJANGO_ENV") == "ci":
-        env_file = BASE_DIR / ".env.ci"
-        print("Используются настройки CI")
-    else:
-        # Пробуем загрузить .env.dev, если не найден - используем .env.prod
-        env_dev = BASE_DIR / ".env.dev"
-        env_prod = BASE_DIR / ".env.prod"
+    # Пробуем загрузить .env.dev, если не найден - используем .env.prod
+    env_dev = BASE_DIR / ".env.dev"
+    env_prod = BASE_DIR / ".env.prod"
 
-        if env_dev.exists():
-            env_file = env_dev
-            print("Используются настройки разработки (.env.dev)")
-        elif env_prod.exists():
-            env_file = env_prod
-            print("Используются производственные настройки (.env.prod)")
-        else:
-            raise FileNotFoundError(
-                "Не найдены файлы настроек. Необходим .env.dev или .env.prod. "
-                "Пожалуйста, создайте один из файлов на основе .env.example"
-            )
+    if env_dev.exists():
+        env_file = env_dev
+        print("Используются настройки разработки (.env.dev)")
+    elif env_prod.exists():
+        env_file = env_prod
+        print("Используются производственные настройки (.env.prod)")
+    else:
+        raise FileNotFoundError(
+            "Не найдены файлы настроек. Необходим .env.dev или .env.prod. "
+            "Пожалуйста, создайте один из файлов на основе .env.example"
+        )
 
     # Загружаем переменные окружения из выбранного файла
     load_dotenv(env_file)

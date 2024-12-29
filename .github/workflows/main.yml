@@ -1,10 +1,10 @@
-name: Django Tests
+name: Django CI/CD
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ main, production ]
   push:
-    branches: [ main]
+    branches: [ main, production ]
 
 jobs:
   test:
@@ -43,7 +43,34 @@ jobs:
         
     - name: Setup CI environment
       run: |
-        cp .env.ci atom/.env.ci
+        echo "DEBUG=True
+        SECRET_KEY=django-insecure-ci-key-123456789
+        ALLOWED_HOSTS=localhost,127.0.0.1
+        CSRF_TRUSTED_ORIGINS=http://localhost:8081,https://localhost:8081
+
+        DB_ENGINE=django.db.backends.postgresql
+        DB_NAME=atom_db
+        DB_USER=atom_user
+        DB_PASSWORD=87408740
+        DB_HOST=localhost
+        DB_PORT=5432
+
+        STATIC_URL=/static/
+        MEDIA_URL=/media/
+        STATIC_ROOT=/app/atom/static
+        MEDIA_ROOT=/app/atom/media
+
+        CSRF_COOKIE_SECURE=False
+        SESSION_COOKIE_SECURE=False
+        SECURE_SSL_REDIRECT=False
+        SECURE_HSTS_SECONDS=0
+        SECURE_HSTS_INCLUDE_SUBDOMAINS=False
+        SECURE_HSTS_PRELOAD=False
+
+        API_VERSION=v1
+
+        CSRF_USE_SESSIONS=False
+        CSRF_COOKIE_HTTPONLY=False" > atom/.env.ci
         
     - name: Run Tests
       env:
@@ -64,7 +91,7 @@ jobs:
     
     - name: Get current date
       id: date
-      run: echo "date=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
+      run: echo "date=$(date +'%d.%m.%Y')" >> $GITHUB_OUTPUT
     
     - name: Get latest tag
       id: latest_tag
@@ -86,12 +113,16 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ steps.version.outputs.new_version }}
-        release_name: Release ${{ steps.version.outputs.new_version }} (${{ steps.date.outputs.date }})
+        release_name: Релиз ${{ steps.version.outputs.new_version }} от ${{ steps.date.outputs.date }}
         body: |
-          Release ${{ steps.version.outputs.new_version }}
-          Date: ${{ steps.date.outputs.date }}
+          # Релиз ${{ steps.version.outputs.new_version }}
           
-          Changes in this release:
+          **Дата выпуска:** ${{ steps.date.outputs.date }}
+          
+          ## Изменения в этой версии:
           ${{ github.event.head_commit.message }}
+          
+          ---
+          Релиз создан автоматически при слиянии в ветку main.
         draft: false
         prerelease: false 
