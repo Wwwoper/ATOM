@@ -44,7 +44,7 @@ jobs:
     - name: Run Tests
       run: |
         cd atom
-        python -m pytest -v
+        PYTHONPATH=$PYTHONPATH:$(pwd) pytest
       env:
         # Основные настройки Django
         DJANGO_ENV: "ci"
