@@ -175,3 +175,4 @@ create_superuser.py
 docker/*
 docker*
 atom/static
+!.env.ci

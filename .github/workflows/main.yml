@@ -41,18 +41,13 @@ jobs:
         pip install -r requirements/prod.txt
         pip install pytest pytest-django
         
+    - name: Setup CI environment
+      run: |
+        cp .env.ci atom/.env.ci
+        
     - name: Run Tests
       env:
-        DEBUG: True
-        SECRET_KEY: test-key-123
-        ALLOWED_HOSTS: localhost,127.0.0.1
-        DB_ENGINE: django.db.backends.postgresql
-        DB_NAME: atom_db
-        DB_USER: atom_user
-        DB_PASSWORD: 87408740
-        DB_HOST: localhost
-        DB_PORT: 5432
-        CSRF_TRUSTED_ORIGINS: http://localhost:8081,https://localhost:8081
+        DJANGO_ENV: ci
       run: |
         cd atom
         pytest -v
