@@ -184,4 +184,8 @@ CSRF_USE_SESSIONS = os.getenv("CSRF_USE_SESSIONS", "False") == "True"
 CSRF_COOKIE_HTTPONLY = os.getenv("CSRF_COOKIE_HTTPONLY", "False") == "True"
 
 # Настройки для whitenoise
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}

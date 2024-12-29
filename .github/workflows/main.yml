@@ -44,7 +44,7 @@ jobs:
     - name: Run Tests
       run: |
         cd atom
-        pytest -v
+        python -m pytest -v
       env:
         # Основные настройки Django
         DJANGO_ENV: "ci"
