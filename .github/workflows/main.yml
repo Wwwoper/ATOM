@@ -1,10 +1,10 @@
-name: Django Tests
+name: Django CI/CD
 
 on:
   pull_request:
     branches: [ main ]
   push:
-    branches: [ main]
+    branches: [ main ]
 
 jobs:
   test:
@@ -39,27 +39,75 @@ jobs:
         pip install -r requirements/base.txt
         pip install -r requirements/dev.txt
         pip install -r requirements/prod.txt
-        pip install pytest pytest-django
+        pip install pytest pytest-django pytest-cov
         
-    - name: Run Tests
-      env:
-        DEBUG: True
-        SECRET_KEY: test-key-123
-        ALLOWED_HOSTS: localhost,127.0.0.1
-        DB_ENGINE: django.db.backends.postgresql
-        DB_NAME: atom_db
-        DB_USER: atom_user
-        DB_PASSWORD: 87408740
-        DB_HOST: localhost
-        DB_PORT: 5432
-        CSRF_TRUSTED_ORIGINS: http://localhost:8081,https://localhost:8081
+    - name: Run Migrations
       run: |
         cd atom
-        pytest -v
+        python manage.py makemigrations
+        python manage.py migrate
+      env:
+        DJANGO_ENV: "ci"
+        DEBUG: "True"
+        SECRET_KEY: "django-insecure-ci-key-123456789"
+        ALLOWED_HOSTS: "localhost,127.0.0.1"
+        DB_ENGINE: "django.db.backends.postgresql"
+        DB_NAME: "atom_db"
+        DB_USER: "atom_user"
+        DB_PASSWORD: "87408740"
+        DB_HOST: "localhost"
+        DB_PORT: "5432"
+        CSRF_TRUSTED_ORIGINS: "http://localhost:8081,https://localhost:8081"
+        
+    - name: Run Tests
+      run: |
+        cd atom
+        pytest
+      env:
+        # Основные настройки Django
+        DJANGO_ENV: "ci"
+        DEBUG: "True"
+        SECRET_KEY: "django-insecure-ci-key-123456789"
+        ALLOWED_HOSTS: "localhost,127.0.0.1"
+        
+        # База данных
+        DB_ENGINE: "django.db.backends.postgresql"
+        DB_NAME: "atom_db"
+        DB_USER: "atom_user"
+        DB_PASSWORD: "87408740"
+        DB_HOST: "localhost"
+        DB_PORT: "5432"
+        
+        # Статические файлы
+        STATIC_URL: "/static/"
+        MEDIA_URL: "/media/"
+        STATIC_ROOT: "/app/atom/static"
+        MEDIA_ROOT: "/app/atom/media"
+        
+        # CSRF и безопасность
+        CSRF_TRUSTED_ORIGINS: "http://localhost:8081,https://localhost:8081"
+        CSRF_USE_SESSIONS: "False"
+        CSRF_COOKIE_HTTPONLY: "False"
+        CSRF_COOKIE_SECURE: "False"
+        
+        # Сессии и безопасность
+        SESSION_COOKIE_SECURE: "False"
+        SECURE_SSL_REDIRECT: "False"
+        SECURE_HSTS_SECONDS: "0"
+        SECURE_HSTS_INCLUDE_SUBDOMAINS: "False"
+        SECURE_HSTS_PRELOAD: "False"
+        
+        # API и локализация
+        API_VERSION: "v1"
+        LANGUAGE_CODE: "ru"
+        TIME_ZONE: "Europe/Moscow"
+        USE_I18N: "True"
+        USE_TZ: "True"
+
 
   create_release:
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/production'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     
     steps:
@@ -69,7 +117,7 @@ jobs:
     
     - name: Get current date
       id: date
-      run: echo "date=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
+      run: echo "date=$(date +'%d.%m.%Y')" >> $GITHUB_OUTPUT
     
     - name: Get latest tag
       id: latest_tag
@@ -91,12 +139,16 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ steps.version.outputs.new_version }}
-        release_name: Release ${{ steps.version.outputs.new_version }} (${{ steps.date.outputs.date }})
+        release_name: Релиз ${{ steps.version.outputs.new_version }} от ${{ steps.date.outputs.date }}
         body: |
-          Release ${{ steps.version.outputs.new_version }}
-          Date: ${{ steps.date.outputs.date }}
+          # Релиз ${{ steps.version.outputs.new_version }}
           
-          Changes in this release:
+          **Дата выпуска:** ${{ steps.date.outputs.date }}
+          
+          ## Изменения в этой версии:
           ${{ github.event.head_commit.message }}
+          
+          ---
+          Релиз создан автоматически при слиянии в ветку production.
         draft: false
         prerelease: false 

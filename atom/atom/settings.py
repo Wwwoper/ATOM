@@ -10,27 +10,32 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Флаг для отслеживания первой загрузки
 if not os.environ.get("SETTINGS_LOADED"):
-    # Пробуем загрузить .env.dev, если не найден - используем .env.prod
-    env_dev = BASE_DIR / ".env.dev"
-    env_prod = BASE_DIR / ".env.prod"
-
-    if env_dev.exists():
-        env_file = env_dev
-        print("Используются настройки разработки (.env.dev)")
-    elif env_prod.exists():
-        env_file = env_prod
-        print("Используются производственные настройки (.env.prod)")
+    # Проверяем CI окружение
+    if os.getenv("DJANGO_ENV") == "ci":
+        # В CI используем переменные окружения напрямую
+        os.environ["SETTINGS_LOADED"] = "True"
     else:
-        raise FileNotFoundError(
-            "Не найдены файлы настроек. Необходим .env.dev или .env.prod. "
-            "Пожалуйста, создайте один из файлов на основе .env.example"
-        )
+        # Пробуем загрузить .env.dev, если не найден - используем .env.prod
+        env_dev = BASE_DIR / ".env.dev"
+        env_prod = BASE_DIR / ".env.prod"
 
-    # Загружаем переменные окружения из выбранного файла
-    load_dotenv(env_file)
+        if env_dev.exists():
+            env_file = env_dev
+            print("Используются настройки разработки (.env.dev)")
+        elif env_prod.exists():
+            env_file = env_prod
+            print("Используются производственные настройки (.env.prod)")
+        else:
+            raise FileNotFoundError(
+                "Не найдены файлы настроек. Необходим .env.dev или .env.prod. "
+                "Пожалуйста, создайте один из файлов на основе .env.example"
+            )
 
-    # Устанавливаем флаг, что настройки уже загружены
-    os.environ["SETTINGS_LOADED"] = "True"
+        # Загружаем переменные окружения из выбранного файла
+        load_dotenv(env_file)
+
+        # Устанавливаем флаг, что настройки уже загружены
+        os.environ["SETTINGS_LOADED"] = "True"
 
 # Проверяем обязательные переменные окружения
 required_env_vars = [
@@ -179,4 +184,8 @@ CSRF_USE_SESSIONS = os.getenv("CSRF_USE_SESSIONS", "False") == "True"
 CSRF_COOKIE_HTTPONLY = os.getenv("CSRF_COOKIE_HTTPONLY", "False") == "True"
 
 # Настройки для whitenoise
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
