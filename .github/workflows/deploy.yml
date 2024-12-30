@@ -1,0 +1,94 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      version:
+        description: 'Version to deploy (tag or branch)'
+        required: true
+        default: 'main'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.inputs.version }}
+      
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      
+      - name: Add known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: Deploy to server
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh $SERVER_USER@$SERVER_HOST << 'EOF'
+            set -e
+            cd $DEPLOY_PATH
+
+            # Получаем последние изменения
+            git fetch --all
+            git checkout ${{ github.event.inputs.version }}
+
+            # Сохраняем текущую версию
+            docker compose tag web:latest web:previous || true
+
+            # Пересобираем и перезапускаем сервисы
+            docker compose down
+            docker compose build --no-cache
+            docker compose up -d
+
+            # Применяем миграции
+            docker compose exec -T web python manage.py migrate --noinput
+            
+            # Собираем статические файлы
+            docker compose exec -T web python manage.py collectstatic --noinput --clear
+            
+            # Очищаем неиспользуемые образы
+            docker image prune -f
+EOF
+
+      - name: Health check
+        env:
+          HEALTH_CHECK_URL: ${{ secrets.HEALTH_CHECK_URL }}
+        run: |
+          echo "Waiting for services to start..."
+          sleep 15
+          
+          MAX_RETRIES=5
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if curl --fail "$HEALTH_CHECK_URL"; then
+              echo "Health check passed!"
+              exit 0
+            fi
+            
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "Health check failed. Retry $RETRY_COUNT of $MAX_RETRIES"
+            sleep 10
+          done
+          
+          echo "Health check failed after $MAX_RETRIES attempts"
+          exit 1 
