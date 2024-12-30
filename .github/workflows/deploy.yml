@@ -47,8 +47,17 @@ jobs:
           git fetch --all && \
           git checkout ${{ github.event.inputs.version }} && \
           
-          # Загружаем переменные окружения из .env.prod
-          export $(cat .env.prod | grep -v '^#' | xargs) && \
+          # Отладочная информация
+          echo 'Current directory:' && pwd && \
+          echo 'Directory contents:' && ls -la && \
+          
+          # Загружаем переменные окружения из .env.prod с абсолютным путем
+          export $(cat $DEPLOY_PATH/atom/.env.prod | grep -v '^#' | xargs) && \
+          
+          # Проверяем загруженные переменные
+          echo 'Environment variables:' && \
+          echo "DB_NAME=$DB_NAME" && \
+          echo "DB_USER=$DB_USER" && \
           
           docker compose down -v && \
           docker system prune -f && \
