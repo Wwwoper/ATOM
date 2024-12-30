@@ -48,7 +48,7 @@ jobs:
           git checkout ${{ github.event.inputs.version }} && \
           
           # Загружаем переменные окружения из .env.prod
-          set -a && source atom/.env.prod && set +a && \
+          export $(cat atom/.env.prod | grep -v '^#' | xargs) && \
           
           docker compose down -v && \
           docker system prune -f && \
