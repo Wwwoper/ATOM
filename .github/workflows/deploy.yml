@@ -43,31 +43,16 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          ssh $SERVER_USER@$SERVER_HOST << 'EOF'
-            set -e
-            cd $DEPLOY_PATH
-
-            # Получаем последние изменения
-            git fetch --all
-            git checkout ${{ github.event.inputs.version }}
-
-            # Сохраняем текущую версию
-            docker compose tag web:latest web:previous || true
-
-            # Пересобираем и перезапускаем сервисы
-            docker compose down
-            docker compose build --no-cache
-            docker compose up -d
-
-            # Применяем миграции
-            docker compose exec -T web python manage.py migrate --noinput
-            
-            # Собираем статические файлы
-            docker compose exec -T web python manage.py collectstatic --noinput --clear
-            
-            # Очищаем неиспользуемые образы
-            docker image prune -f
-EOF
+          ssh $SERVER_USER@$SERVER_HOST "cd $DEPLOY_PATH && \
+          git fetch --all && \
+          git checkout ${{ github.event.inputs.version }} && \
+          docker compose tag web:latest web:previous || true && \
+          docker compose down && \
+          docker compose build --no-cache && \
+          docker compose up -d && \
+          docker compose exec -T web python manage.py migrate --noinput && \
+          docker compose exec -T web python manage.py collectstatic --noinput --clear && \
+          docker image prune -f"
 
       - name: Health check
         env:
@@ -91,4 +76,4 @@ EOF
           done
           
           echo "Health check failed after $MAX_RETRIES attempts"
-          exit 1 
+          exit 1
