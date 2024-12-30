@@ -30,24 +30,21 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd ${{ secrets.DEPLOY_PATH }}/atom && \
+            cd /home/ATOM && \
             git fetch --all && \
             git checkout ${{ github.event.inputs.version }} && \
             
-            # Создаем временный файл с переменными окружения
-            grep -v '^#' /home/ATOM/atom/.env.prod > /home/ATOM/atom/.env && \
-            
             # Останавливаем и удаляем контейнеры
-            docker compose -f docker-compose.yml --env-file /home/ATOM/atom/.env.prod down -v && \
+            docker compose -f /home/ATOM/docker-compose.yml --env-file /home/ATOM/.env.prod down -v && \
             docker system prune -f && \
             
             # Собираем и запускаем контейнеры с явным указанием файла переменных
-            docker compose -f docker-compose.yml --env-file /home/ATOM/atom/.env.prod build --no-cache && \
-            docker compose -f docker-compose.yml --env-file /home/ATOM/atom/.env.prod up -d && \
+            docker compose -f /home/ATOM/docker-compose.yml --env-file /home/ATOM/.env.prod build --no-cache && \
+            docker compose -f /home/ATOM/docker-compose.yml --env-file /home/ATOM/.env.prod up -d && \
             
             # Ждем готовности web-сервиса
             echo 'Waiting for web service to be ready...' && \
-            timeout 120 bash -c 'until docker compose -f docker-compose.yml --env-file /home/ATOM/atom/.env.prod ps web | grep -q "Up"; do 
+            timeout 120 bash -c 'until docker compose -f /home/ATOM/docker-compose.yml --env-file /home/ATOM/.env.prod ps web | grep -q "Up"; do 
               echo "Waiting for web service..." && \
               sleep 5
             done' && \
@@ -56,8 +53,8 @@ jobs:
             sleep 10 && \
             
             # Выполняем миграции и сбор статики
-            docker compose -f docker-compose.yml --env-file /home/ATOM/atom/.env.prod exec -T web python /app/atom/manage.py migrate --noinput && \
-            docker compose -f docker-compose.yml --env-file /home/ATOM/atom/.env.prod exec -T web python /app/atom/manage.py collectstatic --noinput --clear && \
+            docker compose -f /home/ATOM/docker-compose.yml --env-file /home/ATOM/.env.prod exec -T web python /app/atom/manage.py migrate --noinput && \
+            docker compose -f /home/ATOM/docker-compose.yml --env-file /home/ATOM/.env.prod exec -T web python /app/atom/manage.py collectstatic --noinput --clear && \
             docker image prune -f
 
       - name: Health check
