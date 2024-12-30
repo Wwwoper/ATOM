@@ -46,7 +46,8 @@ jobs:
           ssh $SERVER_USER@$SERVER_HOST "cd $DEPLOY_PATH && \
           git fetch --all && \
           git checkout ${{ github.event.inputs.version }} && \
-          docker compose down && \
+          docker compose down -v && \
+          docker system prune -f && \
           docker tag atom-web:latest atom-web:previous || true && \
           docker compose build --no-cache && \
           docker compose up -d && \
