@@ -52,11 +52,13 @@ jobs:
           docker compose build --no-cache && \
           docker compose up -d && \
           
-          # Ждем, пока web-сервис будет готов
+          # Ждем готовности базы данных
+          echo 'Waiting for database to be ready...' && \
+          timeout 60 bash -c 'until docker compose exec db pg_isready -U ${DB_USER} -d ${DB_NAME}; do sleep 2; done' && \
+          
+          # Ждем готовности web-сервиса
           echo 'Waiting for web service to be ready...' && \
           timeout 30 bash -c 'until docker compose ps web | grep -q "running"; do sleep 1; done' && \
-          
-          # Даем дополнительное время на полный запуск
           sleep 10 && \
           
           # Выполняем миграции и сбор статики
