@@ -43,12 +43,12 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          ssh $SERVER_USER@$SERVER_HOST "cd $DEPLOY_PATH && \
+          ssh $SERVER_USER@$SERVER_HOST "cd $DEPLOY_PATH/atom && \
           git fetch --all && \
           git checkout ${{ github.event.inputs.version }} && \
           
           # Загружаем переменные окружения из .env.prod
-          export $(cat atom/.env.prod | grep -v '^#' | xargs) && \
+          export $(cat .env.prod | grep -v '^#' | xargs) && \
           
           docker compose down -v && \
           docker system prune -f && \
