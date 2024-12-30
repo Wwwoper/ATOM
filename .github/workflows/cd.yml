@@ -1,4 +1,4 @@
-name: Deploy
+name: Django CD
 
 on:
   workflow_dispatch:

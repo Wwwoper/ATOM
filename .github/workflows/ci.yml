@@ -1,6 +1,5 @@
-name: Django CI/CD
+name: Django CI
 
-# Добавляем permissions
 permissions:
   contents: write
   pull-requests: write
@@ -8,9 +7,13 @@ permissions:
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: 
+      - main
+      - atom-dev
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - atom-dev
 
 jobs:
   test:
@@ -109,75 +112,3 @@ jobs:
         TIME_ZONE: "Europe/Moscow"
         USE_I18N: "True"
         USE_TZ: "True"
-
-
-  create_release:
-    needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-    
-    - name: Get current date
-      id: date
-      run: echo "date=$(date +'%d.%m.%Y')" >> $GITHUB_OUTPUT
-    
-    - name: Generate new version
-      id: version
-      run: |
-        # Получаем список всех тегов
-        git fetch --tags
-        
-        # Получаем последний тег или устанавливаем v0.0.0 если тегов нет
-        latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-        echo "Latest tag: $latest_tag"
-        
-        # Получаем текущую версию без 'v' префикса
-        latest_version=${latest_tag#v}
-        
-        # Проверяем формат версии
-        if [[ $latest_version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-          # Разбиваем версию на компоненты
-          IFS='.' read -r major minor patch <<< "$latest_version"
-          # Увеличиваем patch версию
-          new_version="v${major}.${minor}.$((patch + 1))"
-        else
-          # Если формат неверный, начинаем с v0.0.1
-          new_version="v0.0.1"
-        fi
-        
-        # Проверяем, существует ли новая версия
-        if git rev-parse "$new_version" >/dev/null 2>&1; then
-          # Если тег существует, увеличиваем patch версию
-          patch=$((patch + 2))
-          new_version="v${major}.${minor}.${patch}"
-        fi
-        
-        echo "Generated new version: $new_version"
-        echo "NEW_VERSION=${new_version}" >> $GITHUB_ENV
-        echo "new_version=${new_version}" >> $GITHUB_OUTPUT
-    
-    - name: Create Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ env.NEW_VERSION }}
-        release_name: Релиз ${{ env.NEW_VERSION }} от ${{ steps.date.outputs.date }}
-        body: |
-          # Релиз ${{ env.NEW_VERSION }}
-          
-          **Дата выпуска:** ${{ steps.date.outputs.date }}
-          
-          ## Изменения в этой версии:
-          ${{ github.event.head_commit.message }}
-          
-          ---
-          Релиз создан автоматически при слиянии в ветку main.
-        draft: false
-        prerelease: false 
