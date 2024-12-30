@@ -51,6 +51,15 @@ jobs:
           docker tag atom-web:latest atom-web:previous || true && \
           docker compose build --no-cache && \
           docker compose up -d && \
+          
+          # Ждем, пока web-сервис будет готов
+          echo 'Waiting for web service to be ready...' && \
+          timeout 30 bash -c 'until docker compose ps web | grep -q "running"; do sleep 1; done' && \
+          
+          # Даем дополнительное время на полный запуск
+          sleep 10 && \
+          
+          # Выполняем миграции и сбор статики
           docker compose exec -T web python /app/atom/manage.py migrate --noinput && \
           docker compose exec -T web python /app/atom/manage.py collectstatic --noinput --clear && \
           docker image prune -f"
