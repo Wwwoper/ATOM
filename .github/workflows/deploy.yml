@@ -49,35 +49,37 @@ jobs:
           
           # Отладочная информация
           echo 'Current directory:' && pwd && \
-          echo 'Directory contents:' && ls -la && \
           
-          # Загружаем переменные окружения из .env.prod с абсолютным путем
-          export $(cat $DEPLOY_PATH/atom/.env.prod | grep -v '^#' | xargs) && \
+          # Создаем временный файл с переменными окружения
+          echo 'Creating env file for docker compose...' && \
+          grep -v '^#' .env.prod > .env && \
           
-          # Проверяем загруженные переменные
-          echo 'Environment variables:' && \
-          echo "DB_NAME=$DB_NAME" && \
-          echo "DB_USER=$DB_USER" && \
+          # Проверяем, что файл создан и содержит данные
+          echo 'Env file contents (without values):' && \
+          cut -d'=' -f1 .env && \
           
-          docker compose down -v && \
+          docker compose --env-file .env down -v && \
           docker system prune -f && \
           docker tag atom-web:latest atom-web:previous || true && \
-          docker compose build --no-cache && \
-          docker compose up -d && \
+          docker compose --env-file .env build --no-cache && \
+          docker compose --env-file .env up -d && \
           
           # Ждем готовности базы данных
           echo 'Waiting for database to be ready...' && \
-          timeout 60 bash -c 'until docker compose exec db pg_isready -U $DB_USER -d $DB_NAME; do sleep 2; done' && \
+          timeout 60 bash -c 'until docker compose --env-file .env exec db pg_isready -U \$(grep DB_USER .env | cut -d= -f2) -d \$(grep DB_NAME .env | cut -d= -f2); do sleep 2; done' && \
           
           # Ждем готовности web-сервиса
           echo 'Waiting for web service to be ready...' && \
-          timeout 30 bash -c 'until docker compose ps web | grep -q "running"; do sleep 1; done' && \
+          timeout 30 bash -c 'until docker compose --env-file .env ps web | grep -q "running"; do sleep 1; done' && \
           sleep 10 && \
           
           # Выполняем миграции и сбор статики
-          docker compose exec -T web python /app/atom/manage.py migrate --noinput && \
-          docker compose exec -T web python /app/atom/manage.py collectstatic --noinput --clear && \
-          docker image prune -f"
+          docker compose --env-file .env exec -T web python /app/atom/manage.py migrate --noinput && \
+          docker compose --env-file .env exec -T web python /app/atom/manage.py collectstatic --noinput --clear && \
+          docker image prune -f && \
+          
+          # Удаляем временный файл
+          rm .env"
 
       - name: Health check
         env:
