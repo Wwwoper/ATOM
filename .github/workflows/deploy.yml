@@ -6,7 +6,7 @@ on:
       environment:
         description: 'Environment to deploy to'
         required: true
-        default: 'staging'
+        default: 'production'
         type: choice
         options:
         - staging
@@ -46,6 +46,10 @@ jobs:
           ssh $SERVER_USER@$SERVER_HOST "cd $DEPLOY_PATH && \
           git fetch --all && \
           git checkout ${{ github.event.inputs.version }} && \
+          
+          # Загружаем переменные окружения из .env.prod
+          set -a && source atom/.env.prod && set +a && \
+          
           docker compose down -v && \
           docker system prune -f && \
           docker tag atom-web:latest atom-web:previous || true && \
@@ -54,7 +58,7 @@ jobs:
           
           # Ждем готовности базы данных
           echo 'Waiting for database to be ready...' && \
-          timeout 60 bash -c 'until docker compose exec db pg_isready -U ${DB_USER} -d ${DB_NAME}; do sleep 2; done' && \
+          timeout 60 bash -c 'until docker compose exec db pg_isready -U $DB_USER -d $DB_NAME; do sleep 2; done' && \
           
           # Ждем готовности web-сервиса
           echo 'Waiting for web service to be ready...' && \
