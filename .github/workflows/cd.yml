@@ -1,4 +1,4 @@
-name: Deploy
+name: Django CD
 
 on:
   workflow_dispatch:
@@ -23,7 +23,20 @@ jobs:
       name: ${{ github.event.inputs.environment }}
     
     steps:
+      - name: Save current version
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }} && \
+            CURRENT_VERSION=$(git rev-parse HEAD) && \
+            echo $CURRENT_VERSION > .previous_version
+
       - name: Deploy to server
+        id: deploy
+        continue-on-error: true
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -35,7 +48,7 @@ jobs:
             git checkout ${{ github.event.inputs.version }} && \
             
             # Останавливаем и удаляем контейнеры
-            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod down -v && \
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod down && \
             docker system prune -f && \
             
             # Собираем и запускаем контейнеры с явным указанием файла переменных
@@ -58,6 +71,8 @@ jobs:
             docker image prune -f
 
       - name: Health check
+        id: health_check
+        continue-on-error: true
         env:
           HEALTH_CHECK_URL: ${{ secrets.HEALTH_CHECK_URL }}
         run: |
@@ -80,3 +95,36 @@ jobs:
           
           echo "Health check failed after $MAX_RETRIES attempts"
           exit 1
+
+      - name: Rollback on failure
+        if: steps.deploy.outcome == 'failure' || steps.health_check.outcome == 'failure'
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }} && \
+            PREVIOUS_VERSION=$(cat .previous_version) && \
+            echo "Rolling back to version: $PREVIOUS_VERSION" && \
+            
+            git checkout $PREVIOUS_VERSION && \
+            
+            # Останавливаем текущие контейнеры
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod down && \
+            
+            # Пересобираем и запускаем контейнеры с предыдущей версией
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod build --no-cache && \
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod up -d && \
+            
+            # Выполняем миграции и сбор статики
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod exec -T web python /app/atom/manage.py migrate --noinput && \
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod exec -T web python /app/atom/manage.py collectstatic --noinput --clear
+
+      - name: Final status check
+        if: steps.deploy.outcome == 'failure' || steps.health_check.outcome == 'failure'
+        run: |
+          if [ "${{ steps.deploy.outcome }}" == "failure" ] || [ "${{ steps.health_check.outcome }}" == "failure" ]; then
+            echo "Deployment failed and rollback was attempted"
+            exit 1
+          fi
