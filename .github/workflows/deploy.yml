@@ -47,9 +47,6 @@ jobs:
           git fetch --all && \
           git checkout ${{ github.event.inputs.version }} && \
           
-          # Отладочная информация
-          echo 'Current directory:' && pwd && \
-          
           # Создаем временный файл с переменными окружения
           echo 'Creating env file for docker compose...' && \
           grep -v '^#' .env.prod > .env && \
@@ -68,10 +65,21 @@ jobs:
           echo 'Waiting for database to be ready...' && \
           timeout 60 bash -c 'until docker compose --env-file .env exec db pg_isready -U \$(grep DB_USER .env | cut -d= -f2) -d \$(grep DB_NAME .env | cut -d= -f2); do sleep 2; done' && \
           
-          # Ждем готовности web-сервиса
+          # Проверяем статус контейнеров
+          echo 'Checking container status:' && \
+          docker compose --env-file .env ps && \
+          
+          # Проверяем логи web-сервиса
+          echo 'Web service logs:' && \
+          docker compose --env-file .env logs web && \
+          
+          # Ждем готовности web-сервиса с увеличенным таймаутом
           echo 'Waiting for web service to be ready...' && \
-          timeout 30 bash -c 'until docker compose --env-file .env ps web | grep -q "running"; do sleep 1; done' && \
-          sleep 10 && \
+          timeout 120 bash -c 'until docker compose --env-file .env ps web | grep -q "running"; do 
+            echo "Waiting for web service... Current status:" && \
+            docker compose --env-file .env ps web && \
+            sleep 5
+          done' && \
           
           # Выполняем миграции и сбор статики
           docker compose --env-file .env exec -T web python /app/atom/manage.py migrate --noinput && \
