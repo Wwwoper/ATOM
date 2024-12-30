@@ -6,7 +6,7 @@ on:
       environment:
         description: 'Environment to deploy to'
         required: true
-        default: 'staging'
+        default: 'production'
         type: choice
         options:
         - staging
@@ -23,36 +23,39 @@ jobs:
       name: ${{ github.event.inputs.environment }}
     
     steps:
-      - uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.inputs.version }}
-      
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-      
-      - name: Add known hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-      
       - name: Deploy to server
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-        run: |
-          ssh $SERVER_USER@$SERVER_HOST "cd $DEPLOY_PATH && \
-          git fetch --all && \
-          git checkout ${{ github.event.inputs.version }} && \
-          docker compose tag web:latest web:previous || true && \
-          docker compose down && \
-          docker compose build --no-cache && \
-          docker compose up -d && \
-          docker compose exec -T web python manage.py migrate --noinput && \
-          docker compose exec -T web python manage.py collectstatic --noinput --clear && \
-          docker image prune -f"
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }} && \
+            git fetch --all && \
+            git checkout ${{ github.event.inputs.version }} && \
+            
+            # Останавливаем и удаляем контейнеры
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod down -v && \
+            docker system prune -f && \
+            
+            # Собираем и запускаем контейнеры с явным указанием файла переменных
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod build --no-cache && \
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod up -d && \
+            
+            # Ждем готовности web-сервиса
+            echo 'Waiting for web service to be ready...' && \
+            timeout 120 bash -c 'until docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod ps web | grep -q "Up"; do 
+              echo "Waiting for web service..." && \
+              sleep 5
+            done' && \
+            
+            # Даем время на инициализацию
+            sleep 10 && \
+            
+            # Выполняем миграции и сбор статики
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod exec -T web python /app/atom/manage.py migrate --noinput && \
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod exec -T web python /app/atom/manage.py collectstatic --noinput --clear && \
+            docker image prune -f
 
       - name: Health check
         env:
