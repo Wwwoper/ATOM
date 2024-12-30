@@ -48,7 +48,7 @@ jobs:
             git checkout ${{ github.event.inputs.version }} && \
             
             # Останавливаем и удаляем контейнеры
-            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod down -v && \
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod down && \
             docker system prune -f && \
             
             # Собираем и запускаем контейнеры с явным указанием файла переменных
@@ -111,7 +111,7 @@ jobs:
             git checkout $PREVIOUS_VERSION && \
             
             # Останавливаем текущие контейнеры
-            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod down -v && \
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod down && \
             
             # Пересобираем и запускаем контейнеры с предыдущей версией
             docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod build --no-cache && \
