@@ -1,6 +1,7 @@
 # ATOM
 
-[![CI/CD](https://github.com/Wwwoper/ATOM/actions/workflows/main.yml/badge.svg)](https://github.com/Wwwoper/ATOM/actions)
+[![CI](https://github.com/Wwwoper/ATOM/actions/workflows/ci.yml/badge.svg)](https://github.com/Wwwoper/ATOM/actions/workflows/ci.yml)
+[![CD](https://github.com/Wwwoper/ATOM/actions/workflows/cd.yml/badge.svg)](https://github.com/Wwwoper/ATOM/actions/workflows/cd.yml)
 [![Release](https://img.shields.io/github/v/release/Wwwoper/ATOM?style=flat-square)](https://github.com/Wwwoper/ATOM/releases)
 ![Release Date](https://img.shields.io/github/release-date/Wwwoper/ATOM?style=flat-square)
 
@@ -17,7 +18,6 @@ Accounting and Tracking Order Management | Учет и отслеживание 
 ## Описание
 
 ATOM - это веб-приложение для управления заказами и складского учета. Система разрабатывается для автоматизации процессов учета и управления заказами.
-
 
 
 ## Установка
