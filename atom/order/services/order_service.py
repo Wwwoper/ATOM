@@ -3,6 +3,7 @@
 from decimal import Decimal
 from django.core.exceptions import ValidationError
 from order.models import Order
+from status.constants import OrderStatusCode, ORDER_STATUS_TRANSITIONS
 
 
 class OrderService:
@@ -178,3 +179,10 @@ class OrderService:
         # Используем update для атомарного обновления полей
         Order.objects.filter(pk=order.pk).update(**update_fields)
         order.refresh_from_db()
+
+    def validate_status_transition(self, from_status, to_status):
+        allowed_transitions = ORDER_STATUS_TRANSITIONS.get(from_status.code, [])
+        if to_status.code not in allowed_transitions:
+            raise ValidationError(
+                f"Недопустимый переход из {from_status.name} в {to_status.name}"
+            )

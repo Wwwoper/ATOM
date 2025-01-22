@@ -4,12 +4,90 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Sum
 from django.utils import timezone
 from status.services.constants import get_status_codes
+from django.db.models.query import QuerySet
+from status.constants import OrderStatusCode, StatusGroupCode
+
 
 from .services.order_status_service import OrderStatusService
+
+
+class OrderQuerySet(models.QuerySet):
+    """QuerySet для модели Order с поддержкой массовых операций."""
+
+    def bulk_update_status(self, new_status, comment=None):
+        """
+        Массовое обновление статуса и комментария для заказов.
+
+        Args:
+            new_status: Новый статус
+            comment: Опциональный комментарий
+
+        Raises:
+            ValidationError: Если хотя бы один заказ не может быть обновлен
+            ValueError: Если не передан статус или передан некорректный статус
+        """
+        from django.db import transaction
+        from status.models import Status
+
+        # Проверяем корректность входных данных
+        if not new_status:
+            raise ValueError("Не указан новый статус")
+        if not isinstance(new_status, Status):
+            raise ValueError("Некорректный тип статуса")
+        if new_status.group.code != StatusGroupCode.ORDER:
+            raise ValueError("Статус не принадлежит группе статусов заказа")
+
+        # Проверяем что есть заказы для обновления
+        if not self.exists():
+            return 0  # Возвращаем 0, если нет заказов для обновления
+
+        with transaction.atomic():
+            # Блокируем заказы для обновления
+            orders = list(
+                self.select_for_update()
+                .select_related("status", "status__group")
+                .order_by("id")
+            )
+
+            errors = []
+            # Проверяем возможность обновления каждого заказа
+            for order in orders:
+                try:
+                    # Проверяем что заказ не оплачен
+                    if order.status.code == OrderStatusCode.PAID:
+                        raise ValidationError(
+                            f"Заказ {order.internal_number} уже оплачен"
+                        )
+
+                    # Проверяем допустимость перехода
+                    if not order.status.group.is_transition_allowed(
+                        order.status.code, new_status.code
+                    ):
+                        raise ValidationError(
+                            f"Недопустимый переход из статуса '{order.status.name}' "
+                            f"в '{new_status.name}' для заказа {order.internal_number}"
+                        )
+                except ValidationError as e:
+                    errors.append(str(e))
+
+            # Если есть ошибки, прерываем обновление
+            if errors:
+                raise ValidationError(
+                    "Невозможно обновить статусы:\n" + "\n".join(errors)
+                )
+
+            # Если все проверки прошли, обновляем заказы
+            update_fields = {"status": new_status}
+            if comment is not None:
+                update_fields["comment"] = comment
+
+            # Обновляем и возвращаем количество обновленных заказов
+            updated_count = self.update(**update_fields)
+            return updated_count
 
 
 class Site(models.Model):
@@ -136,6 +214,9 @@ class Order(models.Model):
     )
     comment = models.TextField(blank=True, null=True, verbose_name="Комментарий")
 
+    # Подключаем OrderQuerySet
+    objects = OrderQuerySet.as_manager()
+
     class Meta:
         """Метаданные модели."""
 
@@ -249,6 +330,6 @@ class Order(models.Model):
         Raises:
             ValidationError: Если заказ оплачен
         """
-        if self.status.code == "paid":
+        if self.status.code == OrderStatusCode.PAID:
             raise ValidationError("Невозможно удалить оплаченный заказ")
         return super().delete(*args, **kwargs)
