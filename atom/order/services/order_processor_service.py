@@ -31,6 +31,7 @@
 """
 
 from status.services.strategy_factory import OrderStatusStrategyFactory
+from django.core.exceptions import ValidationError
 
 
 class OrderProcessor:
@@ -51,15 +52,30 @@ class OrderProcessor:
         """Инициализация сервиса."""
         self.strategy_factory = OrderStatusStrategyFactory
 
-    def execute_status_strategy(self, order) -> None:
-        """
-        Выполнить стратегию обработки для текущего статуса заказа.
+    def execute_status_strategy(self, order, old_status=None) -> bool:
+        """Выполнить стратегию обработки для текущего статуса заказа.
 
         Args:
             order: Заказ для обработки
+            old_status: Предыдущий статус заказа, если был
+
+        Returns:
+            bool: True если обработка прошла успешно
 
         Raises:
             ValidationError: Если невозможно применить стратегию обработки
         """
+        # Получаем стратегию для нового статуса
         strategy = self.strategy_factory.get_strategy(order.status)
-        strategy.handle_ORDER_STATUS_CONFIG(order)
+        success = strategy.handle_order_status_config(order)
+
+        if not success:
+            # Если обработка не удалась, возвращаем старый статус
+            if old_status:
+                order.status = old_status
+                order.save(skip_status_processing=True)
+            raise ValidationError(
+                {"order": "Не удалось обработать изменение статуса заказа"}
+            )
+
+        return success

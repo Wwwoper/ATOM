@@ -37,7 +37,7 @@
     - Все изменения статусов логируются
     - Недопустимые переходы вызывают ValidationError
     - Сервис интегрирован с системой стратегий обработки заказов
-    - Поддерживаетс�� асинхронная обработка изменений статусов
+    - Поддерживается асинхронная обработка изменений статусов
 """
 
 from typing import TYPE_CHECKING
@@ -101,7 +101,17 @@ class OrderStatusService:
         status_changed = self._check_status_change(order)
 
         if status_changed and not skip_status_processing:
-            self.order_processor.execute_status_strategy(order)
+            # Получаем старый заказ для сохранения статуса
+            old_order = (
+                order.__class__.objects.filter(pk=order.pk).only("status").first()
+            )
+            old_status = old_order.status if old_order else None
+
+            success = self.order_processor.execute_status_strategy(order, old_status)
+            if not success:
+                raise ValidationError(
+                    {"order": "Не удалось обработать изменение статуса заказа"}
+                )
 
         return status_changed
 
@@ -133,6 +143,8 @@ class OrderStatusService:
         # Проверяем изменение статуса
         if old_order.status != order.status:
             self._validate_status_change(old_order, order.status.code)
+            # Нужно сохранить новый статус
+            order.__class__.objects.filter(pk=order.pk).update(status=order.status)
             return True
 
         return False

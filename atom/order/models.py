@@ -100,14 +100,15 @@ class Order(models.Model):
         related_name="orders_with_status",
     )
     internal_number = models.CharField(
-        max_length=50, unique=True, verbose_name="Внутренний номер заказа"
+        "Внутренний номер заказа",
+        max_length=255,
+        unique=True,
+        db_index=True,
     )
     external_number = models.CharField(
-        max_length=50,
+        "Внешний номер заказа",
+        max_length=255,
         unique=True,
-        blank=True,
-        null=True,
-        verbose_name="Номер заказа на сайте",
     )
     amount_euro = models.DecimalField(
         max_digits=10, decimal_places=2, verbose_name="Сумма в евро"
@@ -152,7 +153,10 @@ class Order(models.Model):
         return f"Заказ №{self.internal_number} ({self.status})"
 
     def clean(self):
-        """Валидация модели."""
+        """Валидация полей заказа."""
+        super().clean()
+
+        # Базовые проверки
         if not self.status_id:
             raise ValidationError({"status": "Статус заказа обязателен"})
 
@@ -161,20 +165,20 @@ class Order(models.Model):
         if self.amount_rub <= 0:
             raise ValidationError({"amount_rub": "Цена в рублях должна быть больше 0"})
 
-        # Проверка изменения пользователя
-        if self.pk:
-            old_order = Order.objects.get(pk=self.pk)
-            if self.user != old_order.user:
+        if self.pk:  # Если заказ уже существует
+            old_instance = Order.objects.get(pk=self.pk)
+
+            # Проверка изменения пользователя
+            if self.user != old_instance.user:
                 raise ValidationError(
                     {"user": "Невозможно изменить пользователя после создания заказа"}
                 )
 
-            # Проверка изменения сумм и статусов после оплаты
-            if old_order.status.code == "paid":
-                # Проверка изменения сумм
+            # Проверка изменения сумм для оплаченного заказа
+            if old_instance.status.code == "paid":
                 if (
-                    self.amount_euro != old_order.amount_euro
-                    or self.amount_rub != old_order.amount_rub
+                    self.amount_euro != old_instance.amount_euro
+                    or self.amount_rub != old_instance.amount_rub
                 ):
                     raise ValidationError(
                         {
@@ -183,30 +187,59 @@ class Order(models.Model):
                         }
                     )
 
-                # Проверка допустимости перехода статуса
-                if self.status != old_order.status:
-                    allowed_transitions = (
-                        old_order.status.group.allowed_status_transitions.get(
-                            old_order.status.code, []
-                        )
+            # Проверка допустимости перехода статуса
+            if self.status_id != old_instance.status_id:
+                # Проверка допустимости перехода
+                allowed_transitions = (
+                    old_instance.status.group.allowed_status_transitions.get(
+                        old_instance.status.code, []
                     )
-                    if self.status.code not in allowed_transitions:
-                        raise ValidationError(
-                            {
-                                "status": f"Недопустимый переход из статуса '{old_order.status.name}' в '{self.status.name}'"
-                            }
-                        )
+                )
+                if self.status.code not in allowed_transitions:
+                    raise ValidationError(
+                        {
+                            "status": f"Недопустимый переход из статуса '{old_instance.status.name}' в '{self.status.name}'"
+                        }
+                    )
+
+                # Проверка повторной оплаты
+                if old_instance.status.code == "paid" and self.status.code == "paid":
+                    raise ValidationError({"status": "Заказ уже оплачен"})
 
     def save(self, *args, **kwargs):
-        """Сохранение модели."""
+        """Сохранение заказа с валидацией."""
         skip_status_processing = kwargs.pop("skip_status_processing", False)
 
-        status_service = OrderStatusService()
+        # Если заказ оплачен, восстанавливаем оригинальные суммы
+        if self.pk:
+            old_instance = Order.objects.get(pk=self.pk)
+            if old_instance.status.code == "paid":
+                self.amount_euro = old_instance.amount_euro
+                self.amount_rub = old_instance.amount_rub
 
-        # Обработка статуса
+        if self.pk is None:  # Только для новых объектов
+            # Проверяем уникальность internal_number
+            if Order.objects.filter(internal_number=self.internal_number).exists():
+                print(
+                    f"Order with internal_number {self.internal_number} already exists!"
+                )
+                print(
+                    "Existing orders:",
+                    list(Order.objects.values_list("internal_number", "id")),
+                )
+                raise ValidationError(
+                    {
+                        "internal_number": [
+                            "Заказ с таким Внутренний номер заказа уже существует."
+                        ]
+                    }
+                )
+
+        self.full_clean()
+
+        status_service = OrderStatusService()
         status_service.process_status_change(self, skip_status_processing)
 
-        self.clean()
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):

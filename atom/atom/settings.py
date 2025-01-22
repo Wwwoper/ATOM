@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import sys
 
 from dotenv import load_dotenv
 
@@ -189,3 +190,12 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
+
+
+if 'pytest' in sys.argv[0]:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': ':memory:',
+        }
+    }
