@@ -175,3 +175,4 @@ cython_debug/
 atom/static
 atom/api.zip
 atom/tests/api.zip
+atom/staticfiles

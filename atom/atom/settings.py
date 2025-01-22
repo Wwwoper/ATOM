@@ -97,7 +97,9 @@ ROOT_URLCONF = "atom.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [
+            BASE_DIR / "templates",
+        ],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -148,10 +150,12 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
-STATIC_URL = os.getenv("STATIC_URL", "static/")
+STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"  # Меняем на локальную директорию
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
 MEDIA_URL = os.getenv("MEDIA_URL", "media/")
-
-STATIC_ROOT = os.getenv("STATIC_ROOT", BASE_DIR / "static")
 MEDIA_ROOT = os.getenv("MEDIA_ROOT", BASE_DIR / "media")
 
 # Default primary key field type
@@ -192,10 +196,10 @@ STORAGES = {
 }
 
 
-if 'pytest' in sys.argv[0]:
+if "pytest" in sys.argv[0]:
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': ':memory:',
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": ":memory:",
         }
     }
