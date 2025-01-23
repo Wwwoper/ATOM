@@ -45,7 +45,7 @@ jobs:
           script: |
             cd ${{ secrets.DEPLOY_PATH }} && \
             git fetch --all && \
-            git checkout ${{ github.event.inputs.version }} && \
+            git reset --hard origin/${{ github.event.inputs.version }} && \
             
             # Останавливаем и удаляем контейнеры
             docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml --env-file ${{ secrets.DEPLOY_PATH }}/atom/.env.prod down && \
