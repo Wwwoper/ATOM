@@ -259,21 +259,79 @@ LOGGING = {
     "disable_existing_loggers": False,
     "formatters": {
         "verbose": {
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {asctime} {message}",
+            "style": "{",
+        },
+        "admin_format": {
             "format": "{levelname} {asctime} {module} {message}",
             "style": "{",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+    },
+    "filters": {
+        "require_debug_true": {
+            "()": "django.utils.log.RequireDebugTrue",
         },
     },
     "handlers": {
         "console": {
+            "level": "INFO",
             "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+        "file_admin": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": BASE_DIR / "logs" / "admin.log",
+            "formatter": "admin_format",
+        },
+        "file_error": {
+            "level": "ERROR",
+            "class": "logging.FileHandler",
+            "filename": BASE_DIR / "logs" / "error.log",
             "formatter": "verbose",
+        },
+        "debug_file": {
+            "level": "DEBUG",
+            "class": "logging.FileHandler",
+            "filename": BASE_DIR / "logs" / "debug.log",
+            "formatter": "verbose",
+            "filters": ["require_debug_true"],
         },
     },
     "loggers": {
-        "order.admin": {  # Логгер для admin.py в приложении order
-            "handlers": ["console"],
-            "level": "DEBUG",
+        "django": {
+            "handlers": ["console", "file_error"],
+            "level": "INFO",
             "propagate": True,
+        },
+        "django.server": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "django.db.backends": {
+            "handlers": ["debug_file"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "order.admin": {  # Логгер для admin.py в приложении order
+            "handlers": ["console", "file_admin"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "balance": {  # Логгер для приложения balance
+            "handlers": ["console", "file_admin"],
+            "level": "INFO",
+            "propagate": False,
         },
     },
 }
+
+# Создаем директорию для логов если её нет
+LOGS_DIR = BASE_DIR / "logs"
+LOGS_DIR.mkdir(exist_ok=True)

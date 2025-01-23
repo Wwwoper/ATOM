@@ -21,6 +21,8 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.shortcuts import redirect
 import pandas as pd
+from django.db import transaction
+from decimal import Decimal
 
 from .models import Order, Site
 from status.models import Status
@@ -122,9 +124,9 @@ class OrderAdmin(admin.ModelAdmin):
     """Административный интерфейс для модели Order."""
 
     list_display = (
+        "site",
         "internal_number",
         "external_number",
-        "site",
         "user",
         "status",
         "display_expense",
@@ -356,6 +358,11 @@ class OrderAdmin(admin.ModelAdmin):
     )
     def mark_as_paid(self, request, queryset):
         """Массовая оплата заказов."""
+        logger.info(
+            f"Запущена массовая оплата заказов пользователем {request.user.email}"
+        )
+        logger.info(f"Количество выбранных заказов: {queryset.count()}")
+
         if request.POST.get("post"):
             try:
                 paid_status = Status.objects.get(
@@ -363,41 +370,95 @@ class OrderAdmin(admin.ModelAdmin):
                     group__code="ORDER_STATUS_CONFIG",
                 )
             except Status.DoesNotExist:
+                logger.error("Статус 'Оплачен' не найден в системе")
                 messages.error(request, "Статус 'Оплачен' не найден в системе")
                 return
             except Status.MultipleObjectsReturned:
+                logger.error("Найдено несколько статусов 'Оплачен'")
                 messages.error(
                     request,
                     "Найдено несколько статусов 'Оплачен'. Обратитесь к администратору.",
                 )
                 return
 
-            success_count = error_count = 0
+            ordered_queryset = queryset.order_by("created_at")
+            logger.info("Начинаем проверку возможности оплаты заказов")
 
-            for order in queryset:
+            total_euro = Decimal("0")
+            total_rub = Decimal("0")
+            orders_to_process = []
+
+            for order in ordered_queryset:
+                if order.status.code == OrderStatusCode.PAID:
+                    logger.info(
+                        f"Заказ {order.internal_number} уже оплачен, пропускаем"
+                    )
+                    continue
+                total_euro += order.amount_euro
+                total_rub += order.amount_rub
+                orders_to_process.append(order)
+
+            if orders_to_process:
+                first_order = orders_to_process[0]
+                balance = first_order.user.balance
+
+                logger.info(
+                    "Текущий баланс пользователя %s: %.2f€, %.2f₽",
+                    first_order.user.email,
+                    balance.balance_euro,
+                    balance.balance_rub,
+                )
+                logger.info(
+                    "Требуется для оплаты всех заказов: %.2f€, %.2f₽",
+                    total_euro,
+                    total_rub,
+                )
+
+                if balance.balance_euro < total_euro or balance.balance_rub < total_rub:
+                    error_msg = (
+                        f"Недостаточно средств для оплаты всех заказов. "
+                        f"Требуется: {total_euro}€, {total_rub}₽. "
+                        f"Доступно: {balance.balance_euro}€, {balance.balance_rub}₽"
+                    )
+                    logger.error(error_msg)
+                    messages.error(request, error_msg)
+                    return
+
+                success_count = 0
+                logger.info("Начинаем обработку заказов")
+
                 try:
-                    if order.status.code == OrderStatusCode.PAID:
-                        continue
+                    with transaction.atomic():
+                        for order in orders_to_process:
+                            logger.info(f"Оплата заказа {order.internal_number}")
+                            order.status = paid_status
+                            order.save()
+                            success_count += 1
+                            logger.info(
+                                f"Заказ {order.internal_number} успешно оплачен"
+                            )
 
-                    order.status = paid_status
-                    order.save()
-                    success_count += 1
+                        # Обновляем баланс из БД после всех операций
+                        balance.refresh_from_db()
+                        logger.info(
+                            "Баланс после оплаты заказов: %.2f€, %.2f₽",
+                            balance.balance_euro,
+                            balance.balance_rub,
+                        )
+
+                        success_msg = (
+                            f"Успешно оплачено заказов: {success_count} "
+                            "(обработка выполнена от старых к новым)"
+                        )
+                        logger.info(success_msg)
+                        messages.success(request, success_msg)
 
                 except Exception as e:
-                    error_count += 1
-                    messages.error(
-                        request,
-                        f"Ошибка при обработке заказа {order.internal_number}: {str(e)}",
-                    )
+                    error_msg = f"Ошибка при массовой оплате заказов: {str(e)}"
+                    logger.error(error_msg)
+                    logger.error(traceback.format_exc())
+                    messages.error(request, error_msg)
 
-            if success_count:
-                messages.success(
-                    request, f"Успешно обработано заказов: {success_count}"
-                )
-            if error_count:
-                messages.warning(
-                    request, f"Не удалось обработать заказов: {error_count}"
-                )
             return
 
         context = {
@@ -455,3 +516,18 @@ class OrderAdmin(admin.ModelAdmin):
         )
         df.to_excel(response, index=False, engine="openpyxl")
         return response
+
+    def save_model(self, request, obj, form, change):
+        """Логирование сохранения модели."""
+        action = "обновлен" if change else "создан"
+        logger.info(
+            f"Заказ {obj.internal_number} {action} пользователем {request.user.email}"
+        )
+        super().save_model(request, obj, form, change)
+
+    def delete_model(self, request, obj):
+        """Логирование удаления модели."""
+        logger.info(
+            f"Заказ {obj.internal_number} удален пользователем {request.user.email}"
+        )
+        super().delete_model(request, obj)
