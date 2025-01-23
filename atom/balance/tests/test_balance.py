@@ -9,7 +9,6 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 
-from balance.models import Balance
 from user.services import UserService
 
 User = get_user_model()

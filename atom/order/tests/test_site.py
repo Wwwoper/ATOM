@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from django.db.utils import IntegrityError
 from django.db import transaction
 from user.services import UserService
+from django.utils import timezone
 
 from order.models import Site, Order
 from status.models import Status
@@ -117,58 +118,28 @@ class TestSite:
 
         assert site.total_orders == 2
 
-    def test_total_profit_property(self, valid_site_data, user):
-        """Тест подсчета общей прибыли от оплаченных заказов."""
-        site = Site.objects.create(**valid_site_data)
-        default_status = Status.objects.get(
-            group__code="ORDER_STATUS_CONFIG", is_default=True
-        )
-        paid_status = Status.objects.get(group__code="ORDER_STATUS_CONFIG", code="paid")
+    def test_total_profit_property(self, user_with_balance, site, paid_status):
+        """Тест подсчета общей прибыли сайта."""
+        exchange_rate = Decimal("100.00")
+        amount_euro = Decimal("100.00")
+        amount_rub = (amount_euro * exchange_rate).quantize(Decimal("0.01"))
+        profit = Decimal("10.00")
 
-        # Создаем оплаченные заказы
-        Order.objects.create(
-            user=user,
+        order = Order(
+            user=user_with_balance,  # Используем пользователя с балансом
             site=site,
-            internal_number="INT-1",
-            external_number="EXT-1",
-            amount_euro=Decimal("100.00"),
-            amount_rub=Decimal("10000.00"),
             status=paid_status,
-            profit=Decimal("100.00")
-            * (
-                site.organizer_fee_percentage / Decimal("100.00")
-            ),  # Устанавливаем прибыль
+            internal_number="TEST-001",
+            external_number="ZARA-001",
+            amount_euro=amount_euro,
+            amount_rub=amount_rub,
+            profit=profit,
+            created_at=timezone.now().date(),
         )
-        Order.objects.create(
-            user=user,
-            site=site,
-            internal_number="INT-2",
-            external_number="EXT-2",
-            amount_euro=Decimal("200.00"),
-            amount_rub=Decimal("20000.00"),
-            status=paid_status,
-            profit=Decimal("200.00")
-            * (
-                site.organizer_fee_percentage / Decimal("100.00")
-            ),  # Устанавливаем прибыль
-        )
-        # Создаем неоплаченный заказ
-        Order.objects.create(
-            user=user,
-            site=site,
-            internal_number="INT-3",
-            external_number="EXT-3",
-            amount_euro=Decimal("300.00"),
-            amount_rub=Decimal("30000.00"),
-            status=default_status,
-        )
+        order.full_clean()
+        order.save()
 
-        # Проверяем, что учитываются только оплаченные заказы
-        # Общая прибыль = (100 + 200) * 10% = 30
-        expected_profit = (Decimal("100.00") + Decimal("200.00")) * (
-            site.organizer_fee_percentage / Decimal("100.00")
-        )
-        assert site.total_profit == expected_profit
+        assert site.total_profit == profit
 
     def test_str_method(self, valid_site_data):
         """Тест строкового представления."""

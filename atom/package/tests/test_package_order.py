@@ -50,8 +50,9 @@ def order(db, user, paid_status, test_site):
     return Order.objects.create(
         user=user,
         status=paid_status,
-        site=test_site,  # Используем переименованную фикстуру
+        site=test_site,
         internal_number="TEST-001",
+        external_number="EXT-001",
         amount_euro=100.00,
         amount_rub=10000.00,
     )
@@ -63,8 +64,9 @@ def unpaid_order(db, user, new_status, test_site):
     return Order.objects.create(
         user=user,
         status=new_status,
-        site=test_site,  # Используем переименованную фикстуру
+        site=test_site,
         internal_number="TEST-002",
+        external_number="EXT-002",
         amount_euro=100.00,
         amount_rub=10000.00,
     )

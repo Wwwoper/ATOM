@@ -1,7 +1,5 @@
 import pytest
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.db import transaction
 
 from package.models import TransportCompany, PackageDelivery, Package
 from status.models import Status

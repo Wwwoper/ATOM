@@ -9,9 +9,8 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from balance.models import Transaction, BalanceHistoryRecord
+from balance.models import BalanceHistoryRecord
 from balance.services.constants import TransactionTypeChoices
-from balance.services.transaction_service import TransactionProcessor
 from user.services import UserService
 
 User = get_user_model()

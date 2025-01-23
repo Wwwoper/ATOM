@@ -3,6 +3,7 @@ import django
 import pytest
 from django.conf import settings
 from decimal import Decimal
+from django.core.management import call_command
 
 from django.apps import apps
 
@@ -12,8 +13,10 @@ django.setup()
 
 
 @pytest.fixture(scope="session")
-def django_db_setup():
+def django_db_setup(django_db_setup, django_db_blocker):
     """Настройка базы данных для тестов."""
+    with django_db_blocker.unblock():
+        call_command("migrate")
     settings.DATABASES["default"] = {
         "ENGINE": "django.db.backends.sqlite3",
         # "NAME": "file::memory:?cache=shared",
@@ -67,7 +70,7 @@ def balance(db, user):
     balance = Balance.objects.get(user=user)
     # Устанавливаем курс обмена
     Balance.objects.filter(id=balance.id).update(
-        average_exchange_rate=Decimal("100.00")
+        average_exchange_rate=Decimal("100.00")  # Фиксированный курс для тестов
     )
     balance.refresh_from_db()
     return balance
@@ -76,8 +79,8 @@ def balance(db, user):
 @pytest.fixture
 def balance_with_money(db, balance):
     """Создание баланса с начальными средствами для тестов."""
-    balance.balance_euro = Decimal("1000.00")  # Увеличиваем начальный баланс
-    balance.balance_rub = Decimal("100000.00")  # Увеличиваем начальный баланс
+    balance.balance_euro = Decimal("200.00")  # Начальный баланс в евро
+    balance.balance_rub = Decimal("20000.00")  # Начальный баланс в рублях (курс 100)
     balance.save(allow_balance_update=True)
     return balance
 
@@ -144,14 +147,17 @@ def order(db, user, site, status, balance):
     """Фикстура для создания тестового заказа."""
     from order.models import Order
 
+    amount_euro = Decimal("100.00")
+    amount_rub = amount_euro * balance.average_exchange_rate  # Прямой расчет через курс
+
     return Order.objects.create(
         user=user,
         site=site,
         status=status,
         internal_number="TEST001",
         external_number="EXT001",
-        amount_euro=Decimal("100.00"),
-        amount_rub=Decimal("15000.00"),
+        amount_euro=amount_euro,
+        amount_rub=amount_rub,
         expense=Decimal("0.00"),
         profit=Decimal("0.00"),
     )
@@ -159,9 +165,14 @@ def order(db, user, site, status, balance):
 
 @pytest.fixture
 def paid_order(db, user, site, balance):
-    """Фикстура ля создания оплаченного заказа."""
+    """Фикстура для создания оплаченного заказа."""
     from order.models import Order
     from status.models import Status
+
+    amount_euro = Decimal("100.00")
+    amount_rub = amount_euro * balance.average_exchange_rate  # Прямой расчет через курс
+    expense = amount_rub  # Расходы равны сумме в рублях
+    profit = amount_rub - expense  # Прибыль - разница между суммой и расходами
 
     paid_status = Status.objects.get(code="paid", group__code="ORDER_STATUS_CONFIG")
     return Order.objects.create(
@@ -170,10 +181,10 @@ def paid_order(db, user, site, balance):
         status=paid_status,
         internal_number="TEST002",
         external_number="EXT002",
-        amount_euro=Decimal("100.00"),
-        amount_rub=Decimal("10000.00"),
-        expense=Decimal("90.00"),
-        profit=Decimal("10.00"),
+        amount_euro=amount_euro,
+        amount_rub=amount_rub,
+        expense=expense,
+        profit=profit,
     )
 
 
@@ -314,3 +325,18 @@ def reexport_delivery_status(db, delivery_status_group):
         },
     )
     return status
+
+
+@pytest.fixture(scope="function", autouse=True)
+def clean_tables(django_db_setup, db):
+    """Очистка таблиц перед каждым тестом."""
+    from order.models import Order
+    from package.models import Package, PackageDelivery, PackageOrder
+    from balance.models import Transaction
+
+    # Очищаем все связанные таблицы в правильном порядке
+    PackageDelivery.objects.all().delete()
+    PackageOrder.objects.all().delete()
+    Package.objects.all().delete()
+    Transaction.objects.all().delete()
+    Order.objects.all().delete()

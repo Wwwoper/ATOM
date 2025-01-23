@@ -25,11 +25,11 @@
 Примеры использования:
     # Обработка оплаты заказа
     strategy = PaidOrderStrategy()
-    strategy.handle_ORDER_STATUS_CONFIG(order)
+    strategy.handle_order_status_config(order)
 
     # Обработка возврата
     strategy = RefundedOrderStrategy()
-    strategy.handle_ORDER_STATUS_CONFIG(order)
+    strategy.handle_order_status_config(order)
 
 Примечания:
     - Все финансовые операции выполняются атомарно
@@ -40,6 +40,7 @@
 from abc import ABC, abstractmethod
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+from order.models import Order
 
 from balance.services.transaction_service import TransactionProcessor
 from order.services.order_service import OrderService
@@ -49,18 +50,27 @@ class OrderStrategy(ABC):
     """Стратегия для работы с заказами."""
 
     @abstractmethod
-    def handle_ORDER_STATUS_CONFIG(self, order) -> None:
-        """Обработать заказ согласно стратегии."""
+    def handle_order_status_config(self, order: Order) -> bool:
+        """Обработать заказ согласно стратегии.
+
+        Args:
+            order: Заказ для обработки
+
+        Returns:
+            bool: True если обработка прошла успешно
+
+        Raises:
+            ValidationError: При ошибке обработки
+        """
         pass
 
 
 class NewOrderStrategy(OrderStrategy):
     """Стратегия для обработки нового заказа."""
 
-    def handle_ORDER_STATUS_CONFIG(self, order) -> None:
+    def handle_order_status_config(self, order: Order) -> bool:
         """Обработать новый заказ."""
-        print(f"Обработка нового заказа {order.id}")
-        pass
+        return True
 
 
 class PaidOrderStrategy(OrderStrategy):
@@ -71,14 +81,10 @@ class PaidOrderStrategy(OrderStrategy):
         self.transaction_service = TransactionProcessor()
         self.order_service = OrderService()
 
-    def handle_ORDER_STATUS_CONFIG(self, order) -> None:
+    def handle_order_status_config(self, order: Order) -> bool:
         """Обработать оплаченный заказ."""
-        # Проверка на повторную оплату
         if order.paid_at:
             raise ValidationError({"order": "Заказ уже оплачен"})
-
-        # Рассчитать расходы и прибыль
-        self.order_service.calculate_expenses_and_profit(order)
 
         # Сериализовать данные заказа для транзакции
         order_data = self.order_service.serialize_order_data_for_transaction(order)
@@ -86,13 +92,20 @@ class PaidOrderStrategy(OrderStrategy):
         # Обработать транзакцию
         transaction = self.transaction_service.execute_transaction(order_data)
 
-        # После успешной транзакции устанавливаем дату оплаты
+        # После успешной транзакции
         if transaction:
-            order.paid_at = timezone.now()
-            # Используем update для обновления поля без вызова save()
-            type(order).objects.filter(pk=order.pk).update(paid_at=order.paid_at)
+            # Рассчитать расходы и прибыль с актуальным курсом
+            self.order_service.calculate_expenses_and_profit(order)
 
-        return transaction
+            # Установить все расчетные поля
+            self.order_service.set_calculated_fields(
+                order=order,
+                expense=order.expense,
+                profit=order.profit,
+                paid_at=timezone.now(),
+            )
+
+        return bool(transaction)
 
 
 class RefundedOrderStrategy(OrderStrategy):
@@ -103,7 +116,7 @@ class RefundedOrderStrategy(OrderStrategy):
         self.transaction_service = TransactionProcessor()
         self.order_service = OrderService()
 
-    def handle_ORDER_STATUS_CONFIG(self, order):
+    def handle_order_status_config(self, order: Order) -> bool:
         """Обработать возвращенный заказ."""
         print(f"Обработка возвращенного заказа {order.id}")
         # # Обнулить расчетные поля profit, expense, paid_at у заказа
