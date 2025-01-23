@@ -4,6 +4,9 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from order.models import Order
 from status.constants import OrderStatusCode, ORDER_STATUS_TRANSITIONS
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class OrderService:
@@ -22,36 +25,58 @@ class OrderService:
             Дата оплаты (paid_at) устанавливается отдельно при смене статуса
             заказа на "оплачен" через соответствующую стратегию.
         """
-        # Обновляем объект заказа из базы для получения актуальных данных
-        order.refresh_from_db()
-
-        # Получаем актуальный баланс пользователя
-        user_balance = order.user.balance
-        user_balance.refresh_from_db()
-
-        # Расчет расходов и прибыли с округлением до 2 знаков
-        two_places = Decimal("0.00")
-
-        # Расходы считаем по среднему курсу из баланса
-        expense = (order.amount_euro * user_balance.average_exchange_rate).quantize(
-            two_places
+        logger.info(
+            "Расчет расходов и прибыли для заказа %s",
+            order.internal_number,
         )
+        try:
+            # Обновляем объект заказа из базы для получения актуальных данных
+            order.refresh_from_db()
 
-        # Прибыль - разница между фактической суммой в рублях и расходами
-        profit = (order.amount_rub - expense).quantize(two_places)
+            # Получаем актуальный баланс пользователя
+            user_balance = order.user.balance
+            user_balance.refresh_from_db()
 
-        print(f"DEBUG: amount_euro={order.amount_euro}")
-        print(f"DEBUG: exchange_rate={user_balance.average_exchange_rate}")
-        print(f"DEBUG: amount_rub={order.amount_rub}")  # Используем существующую сумму
-        print(f"DEBUG: expense={expense}")
-        print(f"DEBUG: profit={profit}")
+            # Расчет расходов и прибыли с округлением до 2 знаков
+            two_places = Decimal("0.00")
 
-        # Сохраняем все изменения атомарно
-        Order.objects.filter(pk=order.pk).update(
-            expense=expense,
-            profit=profit,
-        )
-        order.refresh_from_db()
+            # Расходы считаем по среднему курсу из баланса
+            expense = (order.amount_euro * user_balance.average_exchange_rate).quantize(
+                two_places
+            )
+
+            # Прибыль - разница между фактической суммой в рублях и расходами
+            profit = (order.amount_rub - expense).quantize(two_places)
+
+            print(f"DEBUG: amount_euro={order.amount_euro}")
+            print(f"DEBUG: exchange_rate={user_balance.average_exchange_rate}")
+            print(
+                f"DEBUG: amount_rub={order.amount_rub}"
+            )  # Используем существующую сумму
+            print(f"DEBUG: expense={expense}")
+            print(f"DEBUG: profit={profit}")
+
+            # Сохраняем все изменения атомарно
+            Order.objects.filter(pk=order.pk).update(
+                expense=expense,
+                profit=profit,
+            )
+            order.refresh_from_db()
+
+            logger.info(
+                "Расчет завершен: заказ=%s, расходы=%.2f₽, прибыль=%.2f₽",
+                order.internal_number,
+                expense,
+                profit,
+            )
+        except Exception as e:
+            logger.error(
+                "Ошибка при расчете для заказа %s: %s",
+                order.internal_number,
+                str(e),
+                exc_info=True,
+            )
+            raise
 
     def calculate_amount_rub(self, order) -> Decimal:
         """Рассчитывает сумму в рублях на основе суммы в евро и среднего курса обмена.

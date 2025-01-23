@@ -11,6 +11,9 @@ from django.db import models
 from django.core.exceptions import ValidationError
 from django.db.models import Sum, Count, Q, Case, When, Value, IntegerField
 from status.constants import OrderStatusCode
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Site(models.Model):
@@ -114,8 +117,40 @@ class Site(models.Model):
 
     def save(self, *args, **kwargs):
         """Сохранение модели."""
-        self.clean()
-        super().save(*args, **kwargs)
+        is_new = not self.pk
+
+        if is_new:
+            logger.info(
+                "Создание нового сайта: %s (URL: %s)",
+                self.name,
+                self.url,
+            )
+        else:
+            logger.info(
+                "Обновление сайта %s (URL: %s)",
+                self.name,
+                self.url,
+            )
+
+        try:
+            self.clean()
+            result = super().save(*args, **kwargs)
+
+            if is_new:
+                logger.info(
+                    "Сайт %s успешно создан (ID: %d)",
+                    self.name,
+                    self.pk,
+                )
+            return result
+        except Exception as e:
+            logger.error(
+                "Ошибка при сохранении сайта %s: %s",
+                self.name,
+                str(e),
+                exc_info=True,
+            )
+            raise
 
     def __str__(self):
         """Строковое представление модели."""
@@ -123,9 +158,33 @@ class Site(models.Model):
 
     def delete(self, *args, **kwargs):
         """Удаление сайта с проверкой на наличие связанных заказов."""
-        if self.orders.exists():
-            raise ValidationError(
-                "Невозможно удалить сайт, пока с ним связаны заказы. "
-                f"Количество связанных заказов: {self.orders.count()}"
+        logger.info("Попытка удаления сайта %s", self.name)
+
+        try:
+            if self.orders.exists():
+                error_msg = "Невозможно удалить сайт, пока с ним связаны заказы"
+                logger.warning(
+                    "Попытка удаления сайта %s с существующими заказами",
+                    self.name,
+                )
+                raise ValidationError(error_msg)
+
+            result = super().delete(*args, **kwargs)
+            logger.info("Сайт %s успешно удален", self.name)
+            return result
+        except Exception as e:
+            logger.error(
+                "Ошибка при удалении сайта %s: %s",
+                self.name,
+                str(e),
+                exc_info=True,
             )
-        return super().delete(*args, **kwargs)
+            raise
+
+    def get_orders_statistics(self):
+        """Получить статистику по заказам."""
+        total_orders = self.total_orders
+        total_profit = self.total_profit
+        return f"Заказов: {total_orders}, Прибыль: {total_profit}₽"
+
+    get_orders_statistics.short_description = "Статистика заказов"

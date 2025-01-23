@@ -266,15 +266,10 @@ LOGGING = {
             "format": "{levelname} {asctime} {message}",
             "style": "{",
         },
-        "admin_format": {
+        "order_format": {
             "format": "{levelname} {asctime} {module} {message}",
             "style": "{",
             "datefmt": "%Y-%m-%d %H:%M:%S",
-        },
-    },
-    "filters": {
-        "require_debug_true": {
-            "()": "django.utils.log.RequireDebugTrue",
         },
     },
     "handlers": {
@@ -283,51 +278,45 @@ LOGGING = {
             "class": "logging.StreamHandler",
             "formatter": "simple",
         },
-        "file_admin": {
+        "order_file": {
             "level": "INFO",
-            "class": "logging.FileHandler",
-            "filename": BASE_DIR / "logs" / "admin.log",
-            "formatter": "admin_format",
+            "class": "logging.handlers.RotatingFileHandler",  # Используем RotatingFileHandler
+            "filename": BASE_DIR / "logs" / "order.log",
+            "formatter": "order_format",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 10,
+            "encoding": "utf-8",
         },
-        "file_error": {
+        "order_error_file": {
             "level": "ERROR",
-            "class": "logging.FileHandler",
-            "filename": BASE_DIR / "logs" / "error.log",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": BASE_DIR / "logs" / "order_error.log",
             "formatter": "verbose",
-        },
-        "debug_file": {
-            "level": "DEBUG",
-            "class": "logging.FileHandler",
-            "filename": BASE_DIR / "logs" / "debug.log",
-            "formatter": "verbose",
-            "filters": ["require_debug_true"],
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 10,
+            "encoding": "utf-8",
         },
     },
     "loggers": {
-        "django": {
-            "handlers": ["console", "file_error"],
+        "order": {  # Корневой логгер для приложения order
+            "handlers": ["console", "order_file", "order_error_file"],
+            "level": "INFO",
+            "propagate": False,  # Отключаем propagate для корневого логгера
+        },
+        "order.models": {
+            "handlers": [],  # Убираем хендлеры, т.к. используем родительский
+            "level": "INFO",
+            "propagate": True,  # Используем propagate для передачи логов родителю
+        },
+        "order.services": {
+            "handlers": [],
             "level": "INFO",
             "propagate": True,
         },
-        "django.server": {
-            "handlers": ["console"],
+        "order.admin": {
+            "handlers": [],
             "level": "INFO",
-            "propagate": False,
-        },
-        "django.db.backends": {
-            "handlers": ["debug_file"],
-            "level": "DEBUG" if DEBUG else "INFO",
-            "propagate": False,
-        },
-        "order.admin": {  # Логгер для admin.py в приложении order
-            "handlers": ["console", "file_admin"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "balance": {  # Логгер для приложения balance
-            "handlers": ["console", "file_admin"],
-            "level": "INFO",
-            "propagate": False,
+            "propagate": True,
         },
     },
 }
@@ -335,3 +324,36 @@ LOGGING = {
 # Создаем директорию для логов если её нет
 LOGS_DIR = BASE_DIR / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
+
+# Создаем описания для лог-файлов
+LOG_DESCRIPTIONS = {
+    "order.log": """
+# Order Application Log File
+# -------------------------
+# Purpose: Основной лог-файл приложения orders
+# Contains:
+# - Создание/обновление/удаление заказов и сайтов
+# - Изменения статусов заказов
+# - Массовые операции с заказами
+# - Информация о бизнес-процессах
+# Level: INFO и выше
+""",
+    "order_error.log": """
+# Order Error Log File
+# -------------------
+# Purpose: Лог ошибок приложения orders
+# Contains:
+# - Критические ошибки
+# - Исключения при обработке заказов
+# - Ошибки валидации
+# - Проблемы с транзакциями
+# Level: ERROR и выше
+""",
+}
+
+# Создаем файлы с описаниями если они не существуют
+for log_file, description in LOG_DESCRIPTIONS.items():
+    log_path = LOGS_DIR / log_file
+    if not log_path.exists() or log_path.stat().st_size == 0:
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write(description)

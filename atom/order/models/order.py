@@ -12,11 +12,14 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from status.constants import OrderStatusCode
+import logging
 
 from ..services.order_status_service import OrderStatusService
 from ..services.order_validation_service import OrderValidationService
 from .querysets import OrderQuerySet
 from .site import Site
+
+logger = logging.getLogger(__name__)
 
 
 class Order(models.Model):
@@ -117,16 +120,66 @@ class Order(models.Model):
 
     def save(self, *args, skip_status_processing: bool = False, **kwargs) -> None:
         """Сохранение заказа."""
-        OrderValidationService.validate_internal_number(self.internal_number, self.pk)
-        self.full_clean()
+        is_new = not self.pk
 
-        if not skip_status_processing:
-            OrderStatusService().process_status_change(self)
+        if is_new:
+            logger.info(
+                "Создание нового заказа: %s (пользователь: %s, сайт: %s)",
+                self.internal_number,
+                self.user.email,
+                self.site.name,
+            )
+        else:
+            logger.info(
+                "Обновление заказа %s (статус: %s)",
+                self.internal_number,
+                self.status.name,
+            )
 
-        super().save(*args, **kwargs)
+        try:
+            OrderValidationService.validate_internal_number(
+                self.internal_number, self.pk
+            )
+            self.full_clean()
+
+            if not skip_status_processing:
+                OrderStatusService().process_status_change(self)
+
+            result = super().save(*args, **kwargs)
+            if is_new:
+                logger.info(
+                    "Заказ %s успешно создан (ID: %d)",
+                    self.internal_number,
+                    self.pk,
+                )
+            return result
+        except Exception as e:
+            logger.error(
+                "Ошибка при сохранении заказа %s: %s",
+                self.internal_number,
+                str(e),
+                exc_info=True,
+            )
+            raise
 
     def delete(self, *args, **kwargs):
         """Удаление заказа с проверкой статуса."""
+        logger.info(
+            "Попытка удаления заказа %s (статус: %s)",
+            self.internal_number,
+            self.status.name,
+        )
         if self.status.code == OrderStatusCode.PAID:
             raise ValidationError("Невозможно удалить оплаченный заказ")
-        return super().delete(*args, **kwargs)
+        try:
+            result = super().delete(*args, **kwargs)
+            logger.info("Заказ %s успешно удален", self.internal_number)
+            return result
+        except Exception as e:
+            logger.error(
+                "Ошибка при удалении заказа %s: %s",
+                self.internal_number,
+                str(e),
+                exc_info=True,
+            )
+            raise
