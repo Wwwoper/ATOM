@@ -14,14 +14,15 @@ class OrderQuerySet(models.QuerySet):
 
     def bulk_update_status(self, new_status, comment=None):
         """Массовое обновление статуса."""
-        logger.info(
-            "Запуск массового обновления статуса на '%s' для %d заказов",
-            new_status.name,
-            self.count(),
-        )
         try:
             # Валидация входных данных
             self._validate_status(new_status)
+
+            logger.info(
+                "Запуск массового обновления статуса на '%s' для %d заказов",
+                new_status.name,
+                self.count(),
+            )
 
             if not self.exists():
                 return 0
