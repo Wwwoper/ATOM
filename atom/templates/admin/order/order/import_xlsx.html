@@ -1,0 +1,66 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+    <div style="padding: 20px;">
+        <h2>{{ title }}</h2>
+        
+        <div style="margin: 20px 0;">
+            <a href="{% url 'order:download_orders_template' %}" class="button" style="margin-bottom: 20px;">
+                Скачать шаблон для заполнения
+            </a>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" action="{% url 'order:import_orders' %}">
+            {% csrf_token %}
+            <input type="hidden" name="do_import" value="1">
+            
+            <div style="margin: 20px 0;">
+                <input type="file" name="xlsx_file" accept=".xlsx" required />
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button type="submit" class="default" style="margin-right: 10px;">
+                    Импортировать
+                </button>
+                <a href="{% url 'admin:order_order_changelist' %}" class="button cancel-link">
+                    Отмена
+                </a>
+            </div>
+
+            {% if messages %}
+                <div style="margin-top: 20px;">
+                    {% for message in messages %}
+                        <div{% if message.tags %} class="{{ message.tags }}"{% endif %} 
+                            style="padding: 10px; margin: 5px 0; {% if message.tags == 'error' %}color: red;{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </form>
+
+        <div style="margin-top: 20px;">
+            <h3>Инструкция по заполнению:</h3>
+            <ol>
+                <li>Скачайте шаблон Excel файла по кнопке выше</li>
+                <li>Заполните данные в соответствии с форматом:</li>
+                <ul>
+                    <li><strong>Внутренний номер</strong> - уникальный номер заказа (обязательно)</li>
+                    <li><strong>Внешний номер</strong> - номер заказа в магазине (обязательно)</li>
+                    <li><strong>Сайт</strong> - название существующего сайта в системе</li>
+                    <li><strong>Пользователь</strong> - email существующего пользователя</li>
+                    <li><strong>Статус</strong> - название существующего статуса заказа</li>
+                    <li><strong>Сумма (EUR)</strong> - сумма в евро (число)</li>
+                    <li><strong>Сумма (RUB)</strong> - сумма в рублях (число)</li>
+                    <li><strong>Комментарий</strong> - любой текст (опционально)</li>
+                </ul>
+                <li>Сохраните файл и загрузите его через форму выше</li>
+            </ol>
+            
+            <p style="color: #666; margin-top: 10px;">
+                <strong>Примечание:</strong> Если заказ с указанным внутренним номером уже существует, 
+                его данные будут обновлены. Новые заказы будут созданы.
+            </p>
+        </div>
+    </div>
+{% endblock %} 

@@ -1,8 +1,15 @@
-"""Фикстуры для интеграционных тестов."""
+"""
+Фикстуры для интеграционных тестов.
+
+Содержит фикстуры для:
+- Создания тестовых пользователей и балансов
+- Создания тестовых сайтов и транспортных компаний
+- Настройки статусов и групп статусов
+- Установки начальных балансов и курсов обмена
+"""
 
 import pytest
 from decimal import Decimal
-
 from django.contrib.contenttypes.models import ContentType
 
 from status.models import StatusGroup, Status
@@ -14,14 +21,36 @@ from balance.services.transaction_service import TransactionProcessor
 from balance.services.constants import TransactionTypeChoices
 
 
+@pytest.fixture(scope="function", autouse=True)
+def clean_tables(django_db_setup, db):
+    """
+    Очистка таблиц перед каждым тестом.
+
+    Удаляет данные из всех связанных таблиц в правильном порядке,
+    чтобы избежать проблем с внешними ключами.
+    """
+    from order.models import Order
+    from package.models import Package, PackageDelivery, PackageOrder
+    from balance.models import Transaction
+
+    # Проверяем начальное состояние
+    print(f"Orders before cleanup: {Order.objects.count()}")
+
+    # Очищаем все связанные таблицы в правильном порядке
+    PackageDelivery.objects.all().delete()
+    PackageOrder.objects.all().delete()
+    Package.objects.all().delete()
+    Transaction.objects.all().delete()
+    Order.objects.all().delete()
+
+    # Проверяем что очистка сработала
+    print(f"Orders after cleanup: {Order.objects.count()}")
+
+
 @pytest.fixture
 def user_with_balance(db):
-    """
-    Создает пользователя с начальным балансом через UserService.
-
-    Returns:
-        User: Пользователь с установленным балансом
-    """
+    """Создает пользователя с начальным балансом через UserService."""
+    print("\nCreating user_with_balance")
     user_service = UserService()
     user = user_service.create_user(
         username="test_user", email="test@example.com", password="test_password"
@@ -32,11 +61,12 @@ def user_with_balance(db):
 @pytest.fixture
 def zara_site(db):
     """
-    Создает сайт Zara.
+    Создает тестовый сайт Zara.
 
     Returns:
-        OrderSite: Сайт для заказов
+        OrderSite: Сайт для заказов с настроенной комиссией
     """
+    print("\nCreating zara_site")
     return OrderSite.objects.create(
         name="Zara",
         url="https://www.zara.com",
