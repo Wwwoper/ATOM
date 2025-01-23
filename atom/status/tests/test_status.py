@@ -1,6 +1,7 @@
+"""Тесты для модели Status."""
+
 import pytest
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError
 from django.contrib.contenttypes.models import ContentType
 
 from status.models import Status, StatusGroup

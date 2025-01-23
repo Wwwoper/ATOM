@@ -1,10 +1,11 @@
+"""Тесты для модели StatusGroup."""
+
 import pytest
 from django.core.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
-from django.db import IntegrityError
-from django.db import transaction
 
-from status.models import StatusGroup, Status
+
+from status.models import StatusGroup
 from order.models import Order
 from package.models import Package
 

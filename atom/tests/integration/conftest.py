@@ -11,7 +11,6 @@
 import pytest
 from decimal import Decimal
 from django.contrib.contenttypes.models import ContentType
-from django.core.management import call_command
 
 from status.models import StatusGroup, Status
 from package.models import TransportCompany, PackageDelivery

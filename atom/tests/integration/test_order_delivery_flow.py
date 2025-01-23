@@ -10,7 +10,6 @@
 from decimal import Decimal
 import pytest
 from django.utils import timezone
-from freezegun import freeze_time
 
 
 from order.models import Order

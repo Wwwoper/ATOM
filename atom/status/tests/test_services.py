@@ -1,3 +1,5 @@
+"""Тесты для сервисов работы со статусами."""
+
 import pytest
 from django.contrib.contenttypes.models import ContentType
 
