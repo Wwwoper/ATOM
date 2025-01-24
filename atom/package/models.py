@@ -286,7 +286,7 @@ class PackageDelivery(models.Model):
 
         if self.price_rub_for_kg and self.price_rub_for_kg < Decimal("0"):
             raise ValidationError(
-                {"price_rub_for_kg": "С��оимость за кг не может быть отрицательной"}
+                {"price_rub_for_kg": "Стоимость за кг не может быть отрицательной"}
             )
 
         # Проверка изменения стоимости после оплаты
@@ -302,11 +302,6 @@ class PackageDelivery(models.Model):
                             "shipping_cost_rub": "Невозможно изменить стоимость после оплаты",
                             "price_rub_for_kg": "Невозможно изменить стоимость после оплаты",
                         }
-                    )
-                # Проверка изменения статуса
-                if self.status != old_delivery.status:
-                    raise ValidationError(
-                        {"status": "Невозможно изменить статус оплаченной доставки"}
                     )
 
         # Проверка уникальности доставки для посылки
@@ -336,8 +331,6 @@ class PackageDelivery(models.Model):
                 self.shipping_cost_rub = old_delivery.shipping_cost_rub
                 self.price_rub_for_kg = old_delivery.price_rub_for_kg
                 self.paid_at = old_delivery.paid_at
-                # Сохраняем старый статус
-                self.status = old_delivery.status
 
         # Валидация перед сохранением
         self.full_clean()
