@@ -34,7 +34,7 @@
 Примечания:
     - Все операции выполняются в транзакции
     - При ошибке валидации вызывается ValidationError
-    - Автоматически создается баланс пользователя
+    - Баланс создается автоматически через сигнал post_save
     - Поддерживает дополнительные поля через **extra_fields
 """
 
@@ -84,7 +84,7 @@ class UserService:
                 username=username, password=password, **extra_fields
             )
             user.full_clean()
-            Balance.objects.create(user=user)
+            # Баланс создастся автоматически через сигнал
             return user
         except ValueError as e:
             raise ValidationError(str(e))

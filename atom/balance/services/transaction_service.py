@@ -14,13 +14,15 @@
 """
 
 from decimal import Decimal
+from typing import List, TYPE_CHECKING
 
 from django.core.exceptions import ValidationError
 from django.db import transaction as db_transaction
-from django.utils import timezone
+from balance.models import Transaction
+from balance.services.constants import TransactionTypeChoices
 
-from .balance_history_service import BalanceHistoryService
-from .balance_service import BalanceService
+if TYPE_CHECKING:
+    from balance.models import Transaction
 
 
 class TransactionProcessor:
@@ -53,104 +55,101 @@ class TransactionProcessor:
     MIN_AMOUNT = Decimal("0")
 
     @classmethod
-    def validate_transaction(cls, transaction) -> "Transaction":
+    def validate_transaction(cls, transaction: Transaction) -> None:
         """
-        Проверяет корректность транзакции перед выполнением.
-
-        Выполняет следующие проверки:
-        1. Наличие объекта транзакции
-        2. Корректность сумм (положительные, не превышают лимит)
-        3. Наличие привязки к балансу
-        4. Корректность даты транзакции
+        Валидация транзакции перед выполнением.
 
         Args:
-            transaction (Transaction): Объект транзакции для валидации
-
-        Returns:
-            Transaction: Валидная транзакция
+            transaction: Транзакция для валидации
 
         Raises:
-            ValidationError: Если транзакция не соответствует требованиям:
-                - Отсутствует объект транзакции
-                - Некорректные суммы
-                - Отсутствует баланс
-                - Некорректная дата
-
-        Example:
-            >>> transaction = Transaction(amount_euro=100, amount_rub=5000)
-            >>> validated_transaction = TransactionProcessor.validate_transaction(transaction)
+            ValidationError: Если транзакция не прошла валидацию
         """
-        if transaction is None:
-            raise ValidationError("Транзакция не может быть None")
-
         errors = []
 
-        # Проверка сумм
-        try:
-            if any(
-                [
-                    transaction.amount_euro <= cls.MIN_AMOUNT,
-                    transaction.amount_rub <= cls.MIN_AMOUNT,
-                ]
-            ):
-                errors.append("Суммы должны быть положительными")
+        # Проверка наличия обязательных сумм
+        if transaction.amount_euro is None:
+            errors.append("Сумма в евро обязательна")
+        if transaction.amount_rub is None:
+            errors.append("Сумма в рублях обязательна")
 
-            if any(
-                [
-                    transaction.amount_euro > cls.MAX_AMOUNT,
-                    transaction.amount_rub > cls.MAX_AMOUNT,
-                ]
+        # Если хотя бы одна сумма отсутствует, прерываем дальнейшую валидацию
+        if errors:
+            raise ValidationError(errors)
+
+        # Проверка положительности сумм
+        if transaction.amount_euro <= Decimal(
+            "0.00"
+        ) or transaction.amount_rub <= Decimal("0.00"):
+            errors.append("Суммы должны быть положительными")
+
+        # Проверка достаточности средств для списания
+        if transaction.transaction_type == TransactionTypeChoices.EXPENSE:
+            balance = transaction.balance
+            if (
+                balance.balance_euro < transaction.amount_euro
+                or balance.balance_rub < transaction.amount_rub
             ):
                 errors.append(
-                    f"Превышена максимальная сумма транзакции ({cls.MAX_AMOUNT})"
+                    f"Недостаточно средств для списания. "
+                    f"Текущий баланс: {balance.balance_euro}€, {balance.balance_rub}₽. "
+                    f"Требуется: {transaction.amount_euro}€, {transaction.amount_rub}₽"
                 )
-        except (TypeError, AttributeError):
-            errors.append("Некорректный формат сумм транзакции")
-
-        # Проверка баланса
-        if not transaction.balance:
-            errors.append("Не указан баланс для транзакции")
-
-        # Проверка даты
-        try:
-            if transaction.transaction_date > timezone.now():
-                errors.append("Дата транзакции не может быть в будущем")
-        except (TypeError, AttributeError):
-            errors.append("Некорректный формат даты транзакции")
 
         if errors:
             raise ValidationError(errors)
 
-        return transaction
-
     @classmethod
-    def execute_transaction(cls, transaction_data: dict) -> "Transaction":
-        """Выполняет транзакцию атомарно."""
-        from ..models import Transaction
+    def execute_transaction(cls, transaction) -> None:
+        # Импорт внутри метода
+        from balance.models import Transaction
+
+        cls.validate_transaction(transaction)
 
         with db_transaction.atomic():
-            # 1. Создание транзакции
-            if isinstance(transaction_data, dict):
-                transaction = Transaction(
-                    balance=transaction_data["balance"],
-                    transaction_type=transaction_data["transaction_type"],
-                    amount_euro=transaction_data["amount_euro"],
-                    amount_rub=transaction_data["amount_rub"],
-                    comment=transaction_data["comment"],
-                )
+            balance = transaction.balance
+
+            # Обновляем баланс в зависимости от типа транзакции
+            if transaction.transaction_type == TransactionTypeChoices.EXPENSE:
+                balance.balance_euro -= transaction.amount_euro
+                balance.balance_rub -= transaction.amount_rub
             else:
-                transaction = transaction_data
+                balance.balance_euro += transaction.amount_euro
+                balance.balance_rub += transaction.amount_rub
 
-            # 2. Валидация
-            cls.validate_transaction(transaction)
+            balance.save()
 
-            # 3. Сохранение без обработки
-            transaction.save(process_transaction=False)
+    @classmethod
+    def update_balance(cls, transaction: "Transaction") -> None:
+        """
+        Обновляет баланс на основе транзакции.
 
-            # 4. Обновление баланса
-            BalanceService.handle_balance_transaction(transaction)
+        Args:
+            transaction: Транзакция для обработки
+        """
+        with db_transaction.atomic():
+            balance = transaction.balance
 
-            # 5. Создание записи в истории
-            BalanceHistoryService.create_balance_history_record(transaction)
+            if transaction.transaction_type == TransactionTypeChoices.EXPENSE:
+                balance.balance_euro -= transaction.amount_euro
+                balance.balance_rub -= transaction.amount_rub
+            elif transaction.transaction_type == TransactionTypeChoices.REPLENISHMENT:
+                balance.balance_euro += transaction.amount_euro
+                balance.balance_rub += transaction.amount_rub
+            elif transaction.transaction_type == TransactionTypeChoices.PAYBACK:
+                balance.balance_euro += transaction.amount_euro
+                balance.balance_rub += transaction.amount_rub
 
-            return transaction
+            balance.save(allow_balance_update=True)
+
+
+def process_batch_transactions(transactions: List["Transaction"]) -> None:
+    """
+    Обработка пакета транзакций.
+
+    Args:
+        transactions: Список транзакций для обработки
+    """
+    with db_transaction.atomic():
+        for tr in transactions:
+            tr.save()

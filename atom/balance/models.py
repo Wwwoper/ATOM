@@ -8,7 +8,8 @@ from django.utils import timezone
 
 
 from .services.constants import TransactionTypeChoices
-from .services.transaction_service import TransactionProcessor
+from .services.balance_processor import BalanceProcessor
+from .services.validators import TransactionValidator
 
 
 class Balance(models.Model):
@@ -126,16 +127,13 @@ class Balance(models.Model):
 
 
 class Transaction(models.Model):
-    """Модель для хранения информации о транзакциях пользователей."""
+    """Модель для хранения финансовых транзакций."""
 
     balance = models.ForeignKey(
-        Balance,
-        on_delete=models.PROTECT,
+        "Balance",
+        on_delete=models.CASCADE,
         related_name="transactions",
         verbose_name="Баланс",
-    )
-    transaction_date = models.DateTimeField(
-        default=timezone.now, verbose_name="Дата транзакции"
     )
     transaction_type = models.CharField(
         max_length=20,
@@ -146,39 +144,51 @@ class Transaction(models.Model):
         max_digits=10,
         decimal_places=2,
         verbose_name="Сумма в евро",
-        validators=[MinValueValidator(Decimal("0.01"))],
     )
     amount_rub = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         verbose_name="Сумма в рублях",
-        validators=[MinValueValidator(Decimal("0.01"))],
     )
-    comment = models.TextField(null=True, blank=True, verbose_name="Комментарий")
+    transaction_date = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Дата транзакции",
+    )
+    comment = models.TextField(
+        blank=True,
+        verbose_name="Комментарий",
+    )
 
-    class Meta:
-        """Метаданные модели."""
+    def clean(self):
+        """Валидация транзакции."""
+        super().clean()
 
-        verbose_name = "Транзакция"
-        verbose_name_plural = "Транзакции"
-        ordering = ["-transaction_date"]
-        constraints = [
-            models.CheckConstraint(
-                check=models.Q(amount_euro__gt=0), name="positive_amount_euro"
+        # Проверяем наличие сумм перед округлением
+        if self.amount_euro is not None:
+            self.amount_euro = self.amount_euro.quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
             )
-        ]
+        if self.amount_rub is not None:
+            self.amount_rub = self.amount_rub.quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+
+        # Валидация сумм
+        TransactionValidator.validate_amounts(self.amount_euro, self.amount_rub)
+
+        # Валидация баланса для списания
+        if self.transaction_type == TransactionTypeChoices.EXPENSE:
+            TransactionValidator.validate_balance_for_expense(
+                self.balance.balance_euro,
+                self.balance.balance_rub,
+                self.amount_euro,
+                self.amount_rub,
+            )
 
     def save(self, *args, **kwargs):
-        """Сохраняет транзакцию.
-
-        Args:
-            process_transaction: Флаг, определяющий нужно ли обрабатывать транзакцию
-        """
-        process_transaction = kwargs.pop("process_transaction", True)
-        if process_transaction:
-            TransactionProcessor.execute_transaction(self)
-        else:
-            super().save(*args, **kwargs)
+        """Сохранение транзакции с валидацией."""
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         """Возвращает строковое представление транзакции."""
@@ -215,24 +225,28 @@ class BalanceHistoryRecord(models.Model):
         decimal_places=2,
         default=Decimal("0.00"),
         verbose_name="Количество евро",
+        validators=[MinValueValidator(Decimal("0.00"))],
     )
     amount_rub = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         default=Decimal("0.00"),
         verbose_name="Количество рублей",
+        validators=[MinValueValidator(Decimal("0.00"))],
     )
     amount_euro_after = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         default=Decimal("0.00"),
         verbose_name="Количество евро после операции",
+        validators=[MinValueValidator(Decimal("0.00"))],
     )
     amount_rub_after = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         default=Decimal("0.00"),
         verbose_name="Количество рублей после операции",
+        validators=[MinValueValidator(Decimal("0.00"))],
     )
     transaction_date = models.DateTimeField(
         default=timezone.now, verbose_name="Дата транзакции"
@@ -253,3 +267,17 @@ class BalanceHistoryRecord(models.Model):
             f"{self.get_transaction_type_display()} от {transaction_date} - "
             f"{self.amount_euro:.2f} EUR, {self.amount_rub:.2f} RUB"
         )
+
+
+"""
+Модели для приложения balance.
+
+Этот модуль содержит модели для работы с балансами пользователей:
+1. Balance - баланс пользователя
+2. Transaction - транзакции по балансу
+
+Особенности:
+- Баланс создается автоматически при создании пользователя через сигнал
+- Баланс защищен от прямого изменения
+- Все изменения происходят через транзакции
+"""

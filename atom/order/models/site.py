@@ -28,6 +28,13 @@ class Site(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
 
+    users = models.ManyToManyField(
+        "user.User",
+        through="UserSite",
+        related_name="sites",
+        verbose_name="Пользователи",
+    )
+
     class Meta:
         """Метаданные модели."""
 
@@ -188,3 +195,24 @@ class Site(models.Model):
         return f"Заказов: {total_orders}, Прибыль: {total_profit}₽"
 
     get_orders_statistics.short_description = "Статистика заказов"
+
+
+class UserSite(models.Model):
+    """Связь пользователя с сайтом."""
+
+    user = models.ForeignKey(
+        "user.User",
+        on_delete=models.CASCADE,
+        related_name="user_sites",
+        verbose_name="Пользователь",
+    )
+    site = models.ForeignKey(
+        "Site", on_delete=models.CASCADE, related_name="user_sites", verbose_name="Сайт"
+    )
+    is_active = models.BooleanField(default=True, verbose_name="Активен")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата добавления")
+
+    class Meta:
+        verbose_name = "Доступ к сайту"
+        verbose_name_plural = "Доступы к сайтам"
+        unique_together = ["user", "site"]
