@@ -64,18 +64,6 @@ class DeliveryStatusService:
                 f"DeliveryStatusService: skip_status_processing - {skip_status_processing}"
             )
 
-            # Проверяем стоимость посылки перед сменой статуса
-            if delivery.package and delivery.package.total_cost_eur <= 0:
-                if delivery.status and delivery.status.code == "paid":
-                    raise ValidationError(
-                        {
-                            "package": (
-                                "Невозможно установить статус 'Оплачено'. "
-                                "Укажите стоимость доставки и комиссию в посылке."
-                            )
-                        }
-                    )
-
             status_changed = self._check_status_change(delivery)
             print(f"DeliveryStatusService: статус изменился - {status_changed}")
 
@@ -90,15 +78,24 @@ class DeliveryStatusService:
             raise ValidationError(str(e))
 
     def _check_status_change(self, delivery: "Delivery") -> bool:
-        """Проверка изменения статуса."""
+        """
+        Проверка изменения статуса.
+
+        Args:
+            delivery: Объект доставки
+        Returns:
+            bool: True если статус изменился, False если нет
+        """
         if not delivery.pk:
-            return False
+            # Для новых объектов всегда True
+            return True
 
-        old_delivery = delivery.__class__.objects.filter(pk=delivery.pk).first()
-        if not old_delivery:
-            return False
-
-        return old_delivery.status != delivery.status
+        try:
+            old_delivery = delivery.__class__.objects.get(pk=delivery.pk)
+            # Сравниваем только коды статусов
+            return old_delivery.status.code != delivery.status.code
+        except delivery.__class__.DoesNotExist:
+            return True
 
     def _set_initial_status(self, delivery: "Delivery") -> bool:
         """Установка начального статуса для новой доставки."""
@@ -128,11 +125,6 @@ class DeliveryStatusService:
         """
         current_status = delivery.status
 
-        # Проверяем возможность перехода
-        if not current_status.group.is_transition_allowed(
-            current_status.code, new_status_code
-        ):
-            raise ValidationError(
-                f"Переход из статуса доставки '{current_status.code}' "
-                f"в '{new_status_code}' недопустим"
-            )
+        # Проверяем только существование статуса в группе
+        if not current_status.group.status_exists(new_status_code):
+            raise ValidationError(f"Статус '{new_status_code}' не существует")
