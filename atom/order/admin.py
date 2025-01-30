@@ -174,25 +174,25 @@ class OrderAdmin(admin.ModelAdmin):
 
     def display_amount_euro(self, obj):
         """Отображение суммы в евро."""
-        return format_html("€{}", f"{obj.amount_euro:,.2f}")
+        return format_html("€{}", f"{obj.amount_euro:.2f}")
 
     display_amount_euro.short_description = "Сумма (EUR)"
 
     def display_amount_rub(self, obj):
         """Отображение суммы в рублях."""
-        return format_html("₽{}", f"{obj.amount_rub:,.2f}")
+        return format_html("₽{}", f"{obj.amount_rub:.2f}")
 
     display_amount_rub.short_description = "Сумма (RUB)"
 
     def display_expense(self, obj):
         """Отображение расхода в рублях."""
-        return format_html("₽{}", f"{obj.expense:,.2f}")
+        return format_html("₽{}", f"{obj.expense:.2f}")
 
     display_expense.short_description = "Расход (RUB)"
 
     def display_profit(self, obj):
         """Отображение прибыли."""
-        return format_html("₽{}", f"{obj.profit:,.2f}")
+        return format_html("₽{}", f"{obj.profit:.2f}")
 
     display_profit.short_description = "Прибыль"
 

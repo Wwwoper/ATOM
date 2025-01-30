@@ -82,7 +82,7 @@ class PackageDeliveryAdmin(admin.ModelAdmin):
     ordering = ("-created_at",)
 
     def display_shipping_cost_rub(self, obj):
-        """Отображение стоимости доставк�� в рублях."""
+        """Отображение стоимости доставки в рублях."""
         return format_html("₽{}", "{:.2f}".format(obj.shipping_cost_rub))
 
     display_shipping_cost_rub.short_description = "Стоимость доставки"
