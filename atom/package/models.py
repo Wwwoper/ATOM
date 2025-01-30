@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+from django.db import transaction
 
 from .services.delivery_status_service import DeliveryStatusService
 
@@ -159,13 +160,6 @@ class TransportCompany(models.Model):
         verbose_name = "Транспортная компания"
         verbose_name_plural = "Транспортные компании"
         ordering = ("name",)
-        constraints = [
-            models.UniqueConstraint(
-                fields=["is_default"],
-                condition=models.Q(is_default=True),
-                name="unique_default_transport_company",
-            )
-        ]
 
     def __str__(self):
         """Строковое представление модели."""
@@ -178,9 +172,16 @@ class TransportCompany(models.Model):
             raise ValidationError({"name": "Название компании обязательно"})
 
     def save(self, *args, **kwargs):
-        """Сохранение с валидацией."""
-        self.full_clean()
-        super().save(*args, **kwargs)
+        """Сохранение с обработкой флага is_default."""
+        if self.is_default:
+            with transaction.atomic():
+                # Снимаем флаг is_default у других компаний
+                TransportCompany.objects.exclude(pk=self.pk).filter(
+                    is_default=True
+                ).update(is_default=False)
+                super().save(*args, **kwargs)
+        else:
+            super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
         """

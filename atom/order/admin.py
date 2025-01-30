@@ -14,7 +14,6 @@ from django.core.exceptions import PermissionDenied
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.contrib import messages
-from django.utils import timezone
 from django.contrib.admin import helpers
 from django.template.response import TemplateResponse
 from django.contrib.auth import get_user_model
@@ -23,6 +22,8 @@ from django.shortcuts import redirect
 import pandas as pd
 from django.db import transaction
 from decimal import Decimal
+from django.http import HttpResponse, HttpResponseRedirect
+from django.db import models
 
 from .models import Order, Site
 from status.models import Status
@@ -148,6 +149,7 @@ class OrderAdmin(admin.ModelAdmin):
     date_hierarchy = "created_at"
     raw_id_fields = ("user",)
     autocomplete_fields = ["user"]
+    change_list_template = "admin/order/order/change_list.html"
 
     fieldsets = (
         (
@@ -174,25 +176,25 @@ class OrderAdmin(admin.ModelAdmin):
 
     def display_amount_euro(self, obj):
         """Отображение суммы в евро."""
-        return format_html("€{}", f"{obj.amount_euro:,.2f}")
+        return format_html("€{}", f"{obj.amount_euro:.2f}")
 
     display_amount_euro.short_description = "Сумма (EUR)"
 
     def display_amount_rub(self, obj):
         """Отображение суммы в рублях."""
-        return format_html("₽{}", f"{obj.amount_rub:,.2f}")
+        return format_html("₽{}", f"{obj.amount_rub:.2f}")
 
     display_amount_rub.short_description = "Сумма (RUB)"
 
     def display_expense(self, obj):
         """Отображение расхода в рублях."""
-        return format_html("₽{}", f"{obj.expense:,.2f}")
+        return format_html("₽{}", f"{obj.expense:.2f}")
 
     display_expense.short_description = "Расход (RUB)"
 
     def display_profit(self, obj):
         """Отображение прибыли."""
-        return format_html("₽{}", f"{obj.profit:,.2f}")
+        return format_html("₽{}", f"{obj.profit:.2f}")
 
     display_profit.short_description = "Прибыль"
 
@@ -478,44 +480,58 @@ class OrderAdmin(admin.ModelAdmin):
             context,
         )
 
-    @admin.action(description="Экспорт выбранных заказов в XLSX")
+    @admin.action(description="Экспорт выбранных заказов в Excel")
     def export_to_xlsx(self, request, queryset):
-        """Экспорт заказов в Excel."""
-        data = []
-        for order in queryset:
-            paid_at = (
-                timezone.localtime(order.paid_at).replace(tzinfo=None)
-                if order.paid_at
-                else None
-            )
+        """Экспорт выбранных заказов в Excel."""
+        logger.info(f"Starting export for {queryset.count()} orders")
+        try:
+            # Создаем DataFrame из queryset
+            data = []
+            for order in queryset:
+                logger.debug(f"Processing order {order.id}")
+                data.append(
+                    {
+                        "ID": order.id,
+                        "Внутренний номер": order.internal_number,
+                        "Внешний номер": order.external_number,
+                        "Сайт": str(order.site),
+                        "Пользователь": str(order.user),
+                        "Статус": str(order.status),
+                        "Сумма (EUR)": order.amount_euro,
+                        "Сумма (RUB)": order.amount_rub,
+                        "Расходы (RUB)": order.expense,
+                        "Прибыль (RUB)": order.profit,
+                        "Комментарий": order.comment,
+                        "Создан": order.created_at,
+                        "Дата оплаты": order.paid_at,
+                    }
+                )
 
-            data.append(
-                {
-                    "ID": order.pk,
-                    "Внутренний номер": order.internal_number,
-                    "Внешний номер": order.external_number,
-                    "Сайт": order.site.name,
-                    "Пользователь": order.user.email,
-                    "Статус": order.status.name,
-                    "Сумма (EUR)": float(order.amount_euro),
-                    "Сумма (RUB)": float(order.amount_rub),
-                    "Расход (RUB)": float(order.expense),
-                    "Прибыль (RUB)": float(order.profit),
-                    "Дата создания": order.created_at,
-                    "Дата оплаты": paid_at,
-                    "Комментарий": order.comment,
-                }
-            )
+            logger.info("Creating DataFrame")
+            df = pd.DataFrame(data)
 
-        df = pd.DataFrame(data)
-        response = HttpResponse(
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        response["Content-Disposition"] = (
-            f'attachment; filename="orders_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
-        )
-        df.to_excel(response, index=False, engine="openpyxl")
-        return response
+            logger.info("Creating response")
+            response = HttpResponse(
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            response["Content-Disposition"] = 'attachment; filename="orders.xlsx"'
+
+            logger.info("Saving to Excel")
+            df.to_excel(response, index=False, engine="openpyxl")
+
+            logger.info("Export completed successfully")
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in export_to_xlsx: {str(e)}", exc_info=True)
+            self.message_user(
+                request,
+                f"Произошла ошибка при экспорте: {str(e)}",
+                level=messages.ERROR,
+            )
+            return HttpResponseRedirect(request.get_full_path())
+
+    export_to_xlsx.short_description = "Экспортировать выбранные заказы в Excel"
 
     def save_model(self, request, obj, form, change):
         """Логирование сохранения модели."""
@@ -531,3 +547,24 @@ class OrderAdmin(admin.ModelAdmin):
             f"Заказ {obj.internal_number} удален пользователем {request.user.email}"
         )
         super().delete_model(request, obj)
+
+    def changelist_view(self, request, extra_context=None):
+        """Добавляем сумму в евро для отображения над списком заказов."""
+        response = super().changelist_view(request, extra_context=extra_context)
+
+        try:
+            qs = response.context_data["cl"].queryset
+        except (AttributeError, KeyError):
+            return response
+
+        # Получаем сумму в евро только для новых заказов
+        total_euro = (
+            qs.filter(status__code=OrderStatusCode.NEW).aggregate(
+                total=models.Sum("amount_euro")
+            )["total"]
+            or 0
+        )
+
+        response.context_data["total_euro"] = total_euro
+
+        return response

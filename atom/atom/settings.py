@@ -357,3 +357,7 @@ for log_file, description in LOG_DESCRIPTIONS.items():
     if not log_path.exists() or log_path.stat().st_size == 0:
         with open(log_path, "w", encoding="utf-8") as f:
             f.write(description)
+
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB

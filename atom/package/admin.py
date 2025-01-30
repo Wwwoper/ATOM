@@ -2,7 +2,7 @@
 
 from django.contrib import admin
 from django.utils.html import format_html
-from django.db import models
+from django.db import models, transaction
 
 from .models import Package, PackageDelivery, PackageOrder, TransportCompany
 
@@ -82,7 +82,7 @@ class PackageDeliveryAdmin(admin.ModelAdmin):
     ordering = ("-created_at",)
 
     def display_shipping_cost_rub(self, obj):
-        """Отображение стоимости доставк�� в рублях."""
+        """Отображение стоимости доставки в рублях."""
         return format_html("₽{}", "{:.2f}".format(obj.shipping_cost_rub))
 
     display_shipping_cost_rub.short_description = "Стоимость доставки"
@@ -157,28 +157,26 @@ class PackageDeliveryAdmin(admin.ModelAdmin):
 
 @admin.register(TransportCompany)
 class TransportCompanyAdmin(admin.ModelAdmin):
-    """Административный интерфейс для модели TransportCompany."""
+    """Админка для транспортной компании."""
 
-    list_display = (
-        "name",
-        "is_active",
-        "is_default",
-        "display_deliveries_count",
-        "created_at",
-    )
-    list_filter = ("is_active", "is_default", "created_at")
-    search_fields = ("name", "description")
-    readonly_fields = ("created_at", "updated_at")
+    list_display = ("name", "is_active", "is_default", "created_at", "updated_at")
+    list_filter = ("is_active", "is_default")
+    search_fields = ("name",)
 
-    def display_deliveries_count(self, obj):
-        """Отображение количества доставок."""
-        return obj.deliveries.count()
+    def save_model(self, request, obj, form, change):
+        """
+        Переопределяем сохранение модели в админке.
+        Используем транзакцию для атомарного обновления флага is_default.
+        """
+        with transaction.atomic():
+            if obj.is_default:  # Если компания помечена как default
+                # Снимаем флаг у всех компаний
+                TransportCompany.objects.filter(is_default=True).update(
+                    is_default=False
+                )
 
-    display_deliveries_count.short_description = "Кол-во доставок"
-
-    def get_queryset(self, request):
-        """Оптимизация запросов для админки."""
-        return super().get_queryset(request).prefetch_related("deliveries")
+            # Сохраняем новую/измененную компанию
+            super().save_model(request, obj, form, change)
 
 
 @admin.register(PackageOrder)

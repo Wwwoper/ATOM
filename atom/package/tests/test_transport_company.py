@@ -52,25 +52,31 @@ class TestTransportCompany:
     def test_default_company_constraint(self, valid_company_data):
         """Тест ограничения на единственную компанию по умолчанию."""
         # Создаем первую компанию по умолчанию
-        default_data = valid_company_data.copy()
-        default_data["is_default"] = True
-        default_company = TransportCompany.objects.create(**default_data)
+        first_company_data = valid_company_data.copy()
+        first_company_data["is_default"] = True
+        first_company = TransportCompany.objects.create(**first_company_data)
 
-        # Пытаемся создать вторую компанию по умолчанию
-        second_default_data = valid_company_data.copy()
-        second_default_data["name"] = "Second Default Company"
-        second_default_data["is_default"] = True
+        # Создаем вторую компанию без флага по умолчанию
+        second_company_data = valid_company_data.copy()
+        second_company_data["name"] = "Second Company"
+        second_company_data["is_default"] = False
+        second_company = TransportCompany.objects.create(**second_company_data)
 
-        # Должны получить ошибку валидации
-        with pytest.raises(ValidationError) as exc_info:
-            TransportCompany.objects.create(**second_default_data)
+        # Сначала снимаем флаг с первой компании
+        first_company.is_default = False
+        first_company.save()
 
-        assert "unique_default_transport_company" in str(exc_info.value)
+        # Теперь делаем вторую компанию по умолчанию
+        second_company.is_default = True
+        second_company.save()
 
-        # Проверяем, что можно создать новую компанию по умолчанию после удаления старой
-        default_company.delete()
-        new_default_company = TransportCompany.objects.create(**second_default_data)
-        assert new_default_company.is_default
+        # Проверяем что вторая стала по умолчанию, а первая - нет
+        first_company.refresh_from_db()
+        assert second_company.is_default is True
+        assert first_company.is_default is False
+
+        # Проверяем что только одна компания по умолчанию
+        assert TransportCompany.objects.filter(is_default=True).count() == 1
 
     def test_active_companies(self, valid_company_data):
         """Тест менеджера для активных компаний."""
@@ -152,3 +158,23 @@ class TestTransportCompany:
         )
         new_company.delete()
         assert not TransportCompany.objects.filter(pk=new_company.pk).exists()
+
+    def test_default_company_switch(self, valid_company_data):
+        """Тест автоматического переключения компании по умолчанию."""
+        # Создаем первую компанию по умолчанию
+        first_company = TransportCompany.objects.create(**valid_company_data)
+        first_company.is_default = True
+        first_company.save()
+
+        # Создаем вторую компанию и делаем её по умолчанию
+        second_company = TransportCompany.objects.create(**valid_company_data)
+        second_company.is_default = True
+        second_company.save()
+
+        # Проверяем что первая компания больше не по умолчанию
+        first_company.refresh_from_db()
+        assert first_company.is_default is False
+        assert second_company.is_default is True
+
+        # Проверяем что только одна компания по умолчанию
+        assert TransportCompany.objects.filter(is_default=True).count() == 1
