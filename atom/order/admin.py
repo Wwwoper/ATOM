@@ -23,6 +23,7 @@ import pandas as pd
 from django.db import transaction
 from decimal import Decimal
 from django.http import HttpResponse, HttpResponseRedirect
+from django.db import models
 
 from .models import Order, Site
 from status.models import Status
@@ -148,6 +149,7 @@ class OrderAdmin(admin.ModelAdmin):
     date_hierarchy = "created_at"
     raw_id_fields = ("user",)
     autocomplete_fields = ["user"]
+    change_list_template = "admin/order/order/change_list.html"
 
     fieldsets = (
         (
@@ -545,3 +547,24 @@ class OrderAdmin(admin.ModelAdmin):
             f"Заказ {obj.internal_number} удален пользователем {request.user.email}"
         )
         super().delete_model(request, obj)
+
+    def changelist_view(self, request, extra_context=None):
+        """Добавляем сумму в евро для отображения над списком заказов."""
+        response = super().changelist_view(request, extra_context=extra_context)
+
+        try:
+            qs = response.context_data["cl"].queryset
+        except (AttributeError, KeyError):
+            return response
+
+        # Получаем сумму в евро только для новых заказов
+        total_euro = (
+            qs.filter(status__code=OrderStatusCode.NEW).aggregate(
+                total=models.Sum("amount_euro")
+            )["total"]
+            or 0
+        )
+
+        response.context_data["total_euro"] = total_euro
+
+        return response
