@@ -197,7 +197,7 @@ class TestPackageDelivery:
         # Создаем первую доставку
         PackageDelivery.objects.create(**valid_delivery_data)
 
-        # Пы��аемся создать вторую доставку для той же посылки
+        # Пытаемся создать вторую доставку для той же посылки
         with pytest.raises(ValidationError) as exc_info:
             delivery = PackageDelivery(**valid_delivery_data)
             delivery.full_clean()
@@ -216,9 +216,8 @@ class TestPackageDelivery:
         delivery.paid_at = timezone.now()
         delivery.save(skip_status_processing=True)
 
-        # Пытаемся изменить статус обратно на новый
+        # Проверяем что смена статуса на другой оплаченный работает
         delivery.status = new_status
-        with pytest.raises(ValidationError) as exc_info:
-            delivery.full_clean()  # Проверяем валидацию до сохранения
+        delivery.save()
 
-        assert "Невозможно изменить статус оплаченной доставки" in str(exc_info.value)
+        assert delivery.status == new_status

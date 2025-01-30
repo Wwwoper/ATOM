@@ -11,8 +11,7 @@ import os
 import sys
 import pytest
 from django.core.management import call_command
-from decimal import Decimal
-from django.utils import timezone
+
 
 # Добавляем корневую директорию проекта в PYTHONPATH
 root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -20,7 +19,7 @@ sys.path.insert(0, root_dir)
 
 
 @pytest.fixture(scope="session")
-def django_db_setup(django_db_setup, django_db_blocker):
+def my_django_db_setup(django_db_setup, django_db_blocker):
     """
     Настройка базы данных для тестов.
 

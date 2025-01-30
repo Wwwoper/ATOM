@@ -13,7 +13,7 @@ django.setup()
 
 
 @pytest.fixture(scope="session")
-def django_db_setup(django_db_setup, django_db_blocker):
+def custom_db_setup(django_db_setup, django_db_blocker):
     """Настройка базы данных для тестов."""
     with django_db_blocker.unblock():
         call_command("migrate")
@@ -328,7 +328,7 @@ def reexport_delivery_status(db, delivery_status_group):
 
 
 @pytest.fixture(scope="function", autouse=True)
-def clean_tables(django_db_setup, db):
+def clean_tables(custom_db_setup, db):
     """Очистка таблиц перед каждым тестом."""
     from order.models import Order
     from package.models import Package, PackageDelivery, PackageOrder
