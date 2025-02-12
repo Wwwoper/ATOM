@@ -110,7 +110,7 @@ class Balance(models.Model):
             if self.balance_euro == 0:
                 return Decimal("0.00")
             return (self.balance_rub / self.balance_euro).quantize(
-                Decimal("0.0001"), rounding=ROUND_HALF_UP
+                Decimal("0.01"), rounding=ROUND_HALF_UP
             )
         except (DivisionByZero, InvalidOperation):
             return Decimal("0.00")
