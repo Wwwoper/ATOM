@@ -41,6 +41,7 @@ from abc import ABC, abstractmethod
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from order.models import Order
+from decimal import Decimal
 
 from balance.services.transaction_service import TransactionProcessor
 from order.services.order_service import OrderService
@@ -86,22 +87,31 @@ class PaidOrderStrategy(OrderStrategy):
         if order.paid_at:
             raise ValidationError({"order": "Заказ уже оплачен"})
 
-        # Сериализовать данные заказа для транзакции
-        order_data = self.order_service.serialize_order_data_for_transaction(order)
+        # 1. Сначала рассчитываем расходы по среднему курсу баланса
+        balance = order.user.balance
+        expense = (order.amount_euro * balance.average_exchange_rate).quantize(
+            Decimal("0.01")
+        )
+        profit = order.amount_rub - expense
 
-        # Обработать транзакцию
+        # 2. Готовим данные для транзакции с правильными суммами
+        order_data = {
+            "balance": balance,
+            "transaction_type": "expense",  # или TransactionTypeChoices.EXPENSE
+            "amount_euro": order.amount_euro,
+            "amount_rub": expense,  # Используем рассчитанную сумму расходов
+            "comment": f"Оплата заказа {order.internal_number}",
+        }
+
+        # 3. Выполняем транзакцию
         transaction = self.transaction_service.execute_transaction(order_data)
 
-        # После успешной транзакции
+        # 4. После успешной транзакции устанавливаем поля
         if transaction:
-            # Рассчитать расходы и прибыль с актуальным курсом
-            self.order_service.calculate_expenses_and_profit(order)
-
-            # Установить все расчетные поля
             self.order_service.set_calculated_fields(
                 order=order,
-                expense=order.expense,
-                profit=order.profit,
+                expense=expense,
+                profit=profit,
                 paid_at=timezone.now(),
             )
 

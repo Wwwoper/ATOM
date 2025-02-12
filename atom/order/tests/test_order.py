@@ -4,19 +4,18 @@
 корректность сохранения их значений.
 """
 
-import pytest
 from decimal import Decimal
-from django.core.exceptions import ValidationError
-from django.db.utils import IntegrityError
-from django.utils import timezone
-from unittest.mock import patch
-from django.db import transaction
 
+
+import pytest
 from balance.services.constants import TransactionTypeChoices
-from order.models import Site, Order
+from django.core.exceptions import ValidationError
+
+from django.utils import timezone
+from order.models import Order, Site
+from status.constants import OrderStatusCode
 from status.models import Status, StatusGroup
 from user.services import UserService
-from status.constants import OrderStatusCode
 
 
 @pytest.mark.django_db
@@ -252,3 +251,234 @@ class TestOrder:
         # Проверяем, что пользователь не изменился в базе
         order.refresh_from_db()
         assert order.user == valid_order_data["user"]
+
+
+@pytest.mark.django_db
+class TestOrderBalanceOperations:
+    """Тесты для проверки операций с балансом при оплате заказов."""
+
+    @pytest.fixture
+    def user_with_initial_balance(self):
+        """Создание пользователя с начальным балансом 1000 EUR / 98000 RUB."""
+        user_service = UserService()
+        user = user_service.create_user(
+            username="balance_test_user",
+            email="balance@test.com",
+            password="test123@rew3rfa3qeraw",
+        )
+
+        # Создаем транзакцию пополнения
+        from balance.models import Transaction
+
+        # Сначала создаем объект
+        transaction = Transaction.objects.create(
+            balance=user.balance,
+            amount_euro=Decimal("1000.00"),
+            amount_rub=Decimal("98000.00"),
+            transaction_type=TransactionTypeChoices.REPLENISHMENT,
+        )
+
+        # Затем сохраняем с дополнительным параметром
+        transaction.save(process_transaction=True)
+
+        return user
+
+    @pytest.fixture
+    def test_site(self):
+        """Фикстура тестового сайта."""
+        return Site.objects.create(
+            name="Test Site",
+            url="https://test.com",
+            organizer_fee_percentage=Decimal("10.00"),
+        )
+
+    def test_balance_and_average_rate_after_orders(
+        self, user_with_initial_balance, test_site
+    ):
+        """
+        Тест проверяет корректность операций с балансом при оплате заказов.
+        """
+        user = user_with_initial_balance
+        print(
+            f"\nНачальный баланс: {user.balance.balance_euro} EUR | {user.balance.balance_rub} RUB"
+        )
+
+        # Получаем статусы
+        status_group = StatusGroup.objects.get(code="ORDER_STATUS_CONFIG")
+        new_status = status_group.status.get(
+            code="new"
+        )  # Используем status вместо statuses
+        paid_status = status_group.status.get(code="paid")
+
+        # Проверяем тип транзакции для paid статуса
+        transaction_type = status_group.get_transaction_type_by_status("paid")
+        print(f"Transaction type for paid status: {transaction_type}")
+
+        test_orders = [
+            (Decimal("200.00"), Decimal("19600.00")),  # 98 RUB/EUR
+            (Decimal("300.00"), Decimal("29400.00")),  # 98 RUB/EUR
+            (Decimal("150.00"), Decimal("14700.00")),  # 98 RUB/EUR
+        ]
+
+        for i, (amount_euro, amount_rub) in enumerate(test_orders):
+            print(f"\n--- Заказ {i+1} ---")
+            print(f"Сумма заказа: {amount_euro} EUR | {amount_rub} RUB")
+
+            # Создаем заказ
+            order = Order.objects.create(
+                user=user,
+                site=test_site,
+                status=new_status,  # Используем new_status
+                internal_number=f"TEST-{i+1}",
+                external_number=f"EXT-{i+1}",
+                amount_euro=amount_euro,
+                amount_rub=amount_rub,
+            )
+
+            # Сохраняем баланс до оплаты
+            balance_euro_before = user.balance.balance_euro
+            balance_rub_before = user.balance.balance_rub
+            print(
+                f"Баланс до оплаты: {balance_euro_before} EUR | {balance_rub_before} RUB"
+            )
+
+            # Меняем статус на paid
+            order.status = paid_status
+            order.save()
+
+            # Проверяем транзакцию
+            last_transaction = user.balance.transactions.last()
+            print(
+                f"Транзакция: тип={last_transaction.transaction_type}, "
+                f"сумма={last_transaction.amount_euro} EUR"
+            )
+
+            # Обновляем данные из БД
+            user.refresh_from_db()
+            print(
+                f"Баланс после оплаты: {user.balance.balance_euro} EUR | {user.balance.balance_rub} RUB"
+            )
+
+            # Проверяем корректность списания
+            assert user.balance.balance_euro == balance_euro_before - amount_euro, (
+                f"Неверное списание EUR: было {balance_euro_before}, "
+                f"стало {user.balance.balance_euro}, "
+                f"должно быть {balance_euro_before - amount_euro}"
+            )
+            assert user.balance.balance_rub == balance_rub_before - amount_rub, (
+                f"Неверное списание RUB: было {balance_rub_before}, "
+                f"стало {user.balance.balance_rub}, "
+                f"должно быть {balance_rub_before - amount_rub}"
+            )
+
+    def test_balance_decrease_with_average_rate(
+        self, user_with_initial_balance, test_site
+    ):
+        """
+        Тест проверяет корректность списания средств с учетом среднего курса.
+
+        Сценарий:
+        1. Начальный баланс: €3292.88 | ₽332349.90 (курс 100.93 ₽/€)
+        2. Заказ на €274.78 | ₽38224.00
+        3. После оплаты:
+           - Баланс должен быть: €3018.10 | ₽304616.35
+           - Средний курс должен остаться: 100.93 ₽/€
+           - Расходы: ₽27733.55 (274.78 € * 100.93 ₽/€)
+           - Прибыль: ₽10490.45 (38224.00 ₽ - 27733.55 ₽)
+        """
+        # 1. Подготовка начального баланса
+        user = user_with_initial_balance
+        balance = user.balance
+
+        # Устанавливаем конкретные значения для теста
+        balance.balance_euro = Decimal("3292.88")
+        balance.balance_rub = Decimal("332349.90")
+        balance.average_exchange_rate = Decimal("100.93")
+        balance.save(allow_balance_update=True)
+
+        print(f"\nНачальный баланс: €{balance.balance_euro} | ₽{balance.balance_rub}")
+        print(f"Начальный средний курс: ₽{balance.average_exchange_rate}/€")
+
+        # 2. Создание заказа
+        order_euro = Decimal("274.78")
+        order_rub = Decimal("38224.00")
+
+        # Получаем статусы
+        status_group = StatusGroup.objects.get(code="ORDER_STATUS_CONFIG")
+        new_status = status_group.status.get(code="new")
+        paid_status = status_group.status.get(code="paid")
+
+        order = Order.objects.create(
+            user=user,
+            site=test_site,
+            status=new_status,
+            amount_euro=order_euro,
+            amount_rub=order_rub,
+            internal_number="TEST-1",  # Добавили обязательное поле
+            external_number="EXT-1",  # Добавили обязательное поле
+        )
+
+        # 3. Сохраняем значения для проверки
+        balance_euro_before = balance.balance_euro
+        balance_rub_before = balance.balance_rub
+        rate_before = balance.average_exchange_rate
+
+        print(f"\nСумма заказа: €{order_euro} | ₽{order_rub}")
+        print(
+            f"Фактический курс заказа: ₽{(order_rub / order_euro).quantize(Decimal('0.01'))}/€"
+        )
+
+        # 4. Оплата заказа
+        order.status = paid_status
+        order.save()
+
+        # Обновляем данные из БД
+        balance.refresh_from_db()
+        order.refresh_from_db()
+
+        print(f"\nПосле оплаты:")
+        print(f"Баланс: €{balance.balance_euro} | ₽{balance.balance_rub}")
+        print(f"Средний курс: ₽{balance.average_exchange_rate}/€")
+        print(f"Расходы: ₽{order.expense}")
+        print(f"Прибыль: ₽{order.profit}")
+
+        # 5. Проверки
+        expected_euro = balance_euro_before - order_euro
+        expected_rub_decrease = (order_euro * rate_before).quantize(Decimal("0.01"))
+        expected_rub = balance_rub_before - expected_rub_decrease
+        expected_expense = expected_rub_decrease
+        expected_profit = order_rub - expected_expense
+
+        # Проверяем баланс в евро
+        assert balance.balance_euro == expected_euro, (
+            f"Неверное списание EUR: "
+            f"было {balance_euro_before}, стало {balance.balance_euro}, "
+            f"должно быть {expected_euro}"
+        )
+
+        # Проверяем баланс в рублях
+        assert balance.balance_rub == expected_rub, (
+            f"Неверное списание RUB: "
+            f"было {balance_rub_before}, стало {balance.balance_rub}, "
+            f"должно быть {expected_rub} "
+            f"(списано {balance_rub_before - balance.balance_rub}, "
+            f"должно быть списано {expected_rub_decrease})"
+        )
+
+        # Проверяем средний курс
+        assert balance.average_exchange_rate == rate_before, (
+            f"Средний курс изменился: "
+            f"было {rate_before}, стало {balance.average_exchange_rate}"
+        )
+
+        # Проверяем расходы
+        assert order.expense == expected_expense, (
+            f"Неверный расчет расходов: "
+            f"получено {order.expense}, должно быть {expected_expense}"
+        )
+
+        # Проверяем прибыль
+        assert order.profit == expected_profit, (
+            f"Неверный расчет прибыли: "
+            f"получено {order.profit}, должно быть {expected_profit}"
+        )
