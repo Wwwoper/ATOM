@@ -5,3 +5,4 @@ asgiref==3.8.1
 pandas==2.2.3
 openpyxl==3.1.5
 email_validator==2.2.0
+whitenoise==6.6.0
